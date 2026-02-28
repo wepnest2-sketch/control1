@@ -1,203 +1,106 @@
-import React, { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
-import { SiteSettings } from '../types/database';
-import ImageUpload from '../components/ImageUpload';
+import React, { useState, useRef } from 'react';
+import { Upload, X, Loader2, Image as ImageIcon } from 'lucide-react';
+import { uploadImage } from '../lib/cloudinary';
+import { cn } from '../lib/utils';
 import { useLanguage } from '../lib/i18n';
 
-export default function Settings() {
+interface ImageUploadProps {
+  value?: string;
+  onChange: (url: string) => void;
+  onRemove?: () => void;
+  className?: string;
+  placeholder?: string;
+}
+
+export default function ImageUpload({ value, onChange, onRemove, className, placeholder }: ImageUploadProps) {
   const { t } = useLanguage();
-  const [settings, setSettings] = useState<SiteSettings | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    fetchSettings();
-  }, []);
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  async function fetchSettings() {
-    const { data } = await supabase.from('site_settings').select('*').single();
-    if (data) setSettings(data);
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!settings) return;
-    setLoading(true);
-    await supabase.from('site_settings').update(settings).eq('id', settings.id);
-    setLoading(false);
-    alert(t('settings_saved'));
+    try {
+      setIsUploading(true);
+      const url = await uploadImage(file);
+      onChange(url);
+    } catch (error) {
+      console.error('Upload failed:', error);
+      alert(t('error_uploading_image'));
+    } finally {
+      setIsUploading(false);
+      // Reset input so same file can be selected again if needed
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
-  if (!settings) return <div>{t('loading')}</div>;
-
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-3xl font-serif font-bold text-gray-900">{t('site_settings')}</h1>
-        <p className="text-gray-500 mt-2">{t('site_settings_desc')}</p>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-8">
-        {/* General Info */}
-        <div className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm space-y-8">
-          <h2 className="text-xl font-bold border-b border-gray-100 pb-4 text-gray-900">{t('general_info')}</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-3">
-              <label className="text-sm font-bold text-gray-700">{t('site_name')}</label>
-              <input
-                type="text"
-                value={settings.site_name}
-                onChange={e => setSettings({...settings, site_name: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
-              />
-            </div>
-            <div className="space-y-3">
-              <label className="text-sm font-bold text-gray-700">{t('delivery_company_name')}</label>
-              <input
-                type="text"
-                value={settings.delivery_company_name}
-                onChange={e => setSettings({...settings, delivery_company_name: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
-              />
-            </div>
-          </div>
-          <div className="space-y-3">
-            <label className="text-sm font-bold text-gray-700">{t('announcement_text')}</label>
-            <input
-              type="text"
-              value={settings.announcement_text || ''}
-              onChange={e => setSettings({...settings, announcement_text: e.target.value})}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
-            />
-          </div>
+    <div className={cn("space-y-3", className)}>
+      <div className="flex items-center gap-3">
+        <div className="relative group overflow-hidden rounded-xl border border-gray-200 bg-gray-50 w-24 h-24 flex-shrink-0 flex items-center justify-center">
+          {value ? (
+            <>
+              <img src={value} alt="Preview" className="w-full h-full object-cover" />
+              {onRemove && (
+                <button
+                  type="button"
+                  onClick={onRemove}
+                  className="absolute top-1 right-1 p-1 bg-white/90 text-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500 hover:text-white shadow-sm"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </>
+          ) : (
+            <ImageIcon className="text-gray-300" size={32} />
+          )}
           
-          <div className="space-y-3">
-            <label className="text-sm font-bold text-gray-700">{t('notification_sound')}</label>
-            <select
-              value={localStorage.getItem('notificationSound') || 'glass'}
-              onChange={(e) => {
-                localStorage.setItem('notificationSound', e.target.value);
-                // Trigger a custom event to notify components
-                window.dispatchEvent(new CustomEvent('sound-changed', { detail: e.target.value }));
-                // Force re-render to show selected value
-                setSettings({...settings}); 
-              }}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
+          {isUploading && (
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center backdrop-blur-sm">
+              <Loader2 className="text-white animate-spin" size={24} />
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept="image/*"
+            className="hidden"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center gap-2 text-sm font-bold shadow-sm"
             >
-              <option value="glass">{t('sound_glass')}</option>
-              <option value="bell">{t('sound_bell')}</option>
-              <option value="digital">{t('sound_digital')}</option>
-              <option value="subtle">{t('sound_subtle')}</option>
-            </select>
+              {isUploading ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  {t('uploading')}
+                </>
+              ) : (
+                <>
+                  <Upload size={16} />
+                  {placeholder || t('upload_image')}
+                </>
+              )}
+            </button>
+            
+            {/* Optional: Allow manual URL entry if needed, but user asked for direct upload button. 
+                We can keep it simple for now. */}
           </div>
+          <p className="text-xs text-gray-400 mt-2">
+            {t('image_upload_hint')}
+          </p>
         </div>
-
-        {/* Branding */}
-        <div className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm space-y-8">
-          <h2 className="text-xl font-bold border-b border-gray-100 pb-4 text-gray-900">{t('branding')}</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-3">
-              <label className="text-sm font-bold text-gray-700">{t('logo_url')}</label>
-              <ImageUpload
-                value={settings.logo_url}
-                onChange={(url) => setSettings({...settings, logo_url: url})}
-                onRemove={() => setSettings({...settings, logo_url: ''})}
-                placeholder={t('upload_logo')}
-              />
-            </div>
-            <div className="space-y-3">
-              <label className="text-sm font-bold text-gray-700">{t('favicon_url')}</label>
-              <ImageUpload
-                value={settings.favicon_url || ''}
-                onChange={(url) => setSettings({...settings, favicon_url: url})}
-                onRemove={() => setSettings({...settings, favicon_url: ''})}
-                placeholder={t('upload_favicon')}
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-3">
-              <label className="text-sm font-bold text-gray-700">{t('primary_color')}</label>
-              <div className="flex gap-3">
-                <input
-                  type="color"
-                  value={settings.primary_color}
-                  onChange={e => setSettings({...settings, primary_color: e.target.value})}
-                  className="h-12 w-12 rounded-lg border border-gray-200 cursor-pointer p-1 bg-white"
-                />
-                <input
-                  type="text"
-                  value={settings.primary_color}
-                  onChange={e => setSettings({...settings, primary_color: e.target.value})}
-                  className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black uppercase font-mono text-left"
-                  dir="ltr"
-                />
-              </div>
-            </div>
-            <div className="space-y-3">
-              <label className="text-sm font-bold text-gray-700">{t('secondary_color')}</label>
-              <div className="flex gap-3">
-                <input
-                  type="color"
-                  value={settings.secondary_color}
-                  onChange={e => setSettings({...settings, secondary_color: e.target.value})}
-                  className="h-12 w-12 rounded-lg border border-gray-200 cursor-pointer p-1 bg-white"
-                />
-                <input
-                  type="text"
-                  value={settings.secondary_color}
-                  onChange={e => setSettings({...settings, secondary_color: e.target.value})}
-                  className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black uppercase font-mono text-left"
-                  dir="ltr"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Hero Section */}
-        <div className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm space-y-8">
-          <h2 className="text-xl font-bold border-b border-gray-100 pb-4 text-gray-900">{t('hero_section')}</h2>
-          <div className="space-y-3">
-            <label className="text-sm font-bold text-gray-700">{t('hero_image_url')}</label>
-            <ImageUpload
-              value={settings.hero_image_url || ''}
-              onChange={(url) => setSettings({...settings, hero_image_url: url})}
-              onRemove={() => setSettings({...settings, hero_image_url: ''})}
-              placeholder={t('upload_hero_image')}
-            />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-3">
-              <label className="text-sm font-bold text-gray-700">{t('hero_title')}</label>
-              <input
-                type="text"
-                value={settings.hero_title || ''}
-                onChange={e => setSettings({...settings, hero_title: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
-              />
-            </div>
-            <div className="space-y-3">
-              <label className="text-sm font-bold text-gray-700">{t('hero_subtitle')}</label>
-              <input
-                type="text"
-                value={settings.hero_subtitle || ''}
-                onChange={e => setSettings({...settings, hero_subtitle: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="flex justify-end pt-4">
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-10 py-4 bg-black text-white rounded-xl hover:bg-gray-800 transition-colors font-bold shadow-lg shadow-gray-200 disabled:opacity-50 text-lg"
-          >
-            {loading ? t('saving') : t('save_changes')}
-          </button>
-        </div>
-      </form>
+      </div>
     </div>
   );
 }
