@@ -6,7 +6,6 @@ export type Product = {
   discount_price: number | null;
   category_id: string | null;
   image_url: string | null;
-  product_gallery: string[] | null;
   is_active: boolean;
   created_at: string;
 };

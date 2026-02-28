@@ -37,7 +37,6 @@ export default function Products() {
     discount_price: 0,
     category_id: '',
     image_url: '',
-    product_gallery: [],
     is_active: true
   });
 
@@ -65,8 +64,14 @@ export default function Products() {
     if (product) {
       setEditingProduct(product);
       setFormData({
-        ...product,
-        product_gallery: product.product_gallery || []
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        price: product.price,
+        discount_price: product.discount_price,
+        category_id: product.category_id,
+        image_url: product.image_url,
+        is_active: product.is_active
       });
       await fetchVariants(product.id);
     } else {
@@ -78,7 +83,6 @@ export default function Products() {
         discount_price: 0,
         category_id: categories[0]?.id || '',
         image_url: '',
-        product_gallery: [],
         is_active: true
       });
       setVariants([]);
@@ -111,18 +115,29 @@ export default function Products() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Clean data for submission - only include fields that exist in original schema
+      const submissionData = {
+        name: formData.name,
+        description: formData.description || null,
+        price: Number(formData.price),
+        discount_price: formData.discount_price ? Number(formData.discount_price) : null,
+        category_id: formData.category_id || null,
+        image_url: formData.image_url || null,
+        is_active: !!formData.is_active
+      };
+
       let productId = editingProduct?.id;
 
       if (editingProduct) {
         const { error } = await supabase
           .from('products')
-          .update(formData)
+          .update(submissionData)
           .eq('id', editingProduct.id);
         if (error) throw error;
       } else {
         const { data, error } = await supabase
           .from('products')
-          .insert([formData])
+          .insert([submissionData])
           .select()
           .single();
         if (error) throw error;
@@ -150,7 +165,7 @@ export default function Products() {
       fetchProducts();
     } catch (error) {
       console.error('Error saving product:', error);
-      alert('حدث خطأ أثناء حفظ المنتج');
+      alert('حدث خطأ أثناء حفظ المنتج: عاد النظام للصورة الواحدة لتصحيح الخطأ');
     }
   };
 
@@ -210,14 +225,6 @@ export default function Products() {
     setFormData(prev => ({ ...prev, image_url: '' }));
   };
 
-  const handleGalleryUpload = (url: string) => {
-    setFormData(prev => ({ ...prev, product_gallery: [...(prev.product_gallery || []), url] }));
-  };
-
-  const removeGalleryImage = (index: number) => {
-    setFormData(prev => ({ ...prev, product_gallery: prev.product_gallery?.filter((_, i) => i !== index) }));
-  };
-
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -241,11 +248,6 @@ export default function Products() {
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-gray-300">
                     <ImageIcon size={32} />
-                  </div>
-                )}
-                {product.product_gallery && product.product_gallery.length > 0 && (
-                  <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-md backdrop-blur-sm">
-                    +{product.product_gallery.length}
                   </div>
                 )}
               </div>
@@ -449,39 +451,14 @@ export default function Products() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-3">
-                  <label className="text-sm font-bold text-gray-700">{t('main_image') || 'الصورة الأساسية'}</label>
-                  <ImageUpload
-                    value={formData.image_url || ''}
-                    onChange={handleImageUpload}
-                    onRemove={removeImage}
-                    placeholder={t('upload_image')}
-                  />
-                </div>
-
-                <div className="space-y-3">
-                  <label className="text-sm font-bold text-gray-700">{t('gallery') || 'معرض الصور'}</label>
-                  <ImageUpload
-                    onChange={handleGalleryUpload}
-                    placeholder={t('add_to_gallery') || 'إضافة للمعرض'}
-                    className="w-full"
-                  />
-                  <div className="grid grid-cols-3 gap-2 mt-2">
-                    {formData.product_gallery?.map((url, idx) => (
-                      <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border border-gray-100 shadow-sm bg-gray-50">
-                        <img src={url} alt="" className="w-full h-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => removeGalleryImage(idx)}
-                          className="absolute top-1 right-1 p-1 bg-white/90 text-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500 hover:text-white shadow-sm"
-                        >
-                          <X size={12} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+              <div className="space-y-3">
+                <label className="text-sm font-bold text-gray-700">{t('images')}</label>
+                <ImageUpload
+                  value={formData.image_url || ''}
+                  onChange={handleImageUpload}
+                  onRemove={removeImage}
+                  placeholder={t('upload_image')}
+                />
               </div>
 
               <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
