@@ -91,7 +91,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           'fixed inset-y-0 z-50 bg-white text-gray-900 transition-transform duration-200 ease-in-out shadow-lg print:hidden',
           isCollapsed ? 'w-20' : 'w-64',
           // mobile visibility
-          language === 'ar' 
+          language === 'ar'
             ? (isSidebarOpen ? 'translate-x-0' : 'translate-x-[100%] lg:translate-x-0')
             : (isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'),
           'lg:static lg:inset-auto',
@@ -108,7 +108,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             >
               {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
             </button>
-            <span className={cn('text-xl font-serif font-bold tracking-wider transition-opacity', isCollapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100')}>بابيون</span>
+            <div className={cn('flex items-center gap-3 transition-all duration-300', isCollapsed ? 'scale-75' : 'scale-100')}>
+              <img
+                src="https://res.cloudinary.com/dlwuxgvse/image/upload/v1771972557/434186110_754831856741654_3189618891943124343_n_y4f1iu.jpg"
+                alt="Logo"
+                className="w-10 h-10 rounded-full object-cover ring-2 ring-gray-100 shadow-sm"
+              />
+              <span className={cn('text-xl font-serif font-bold tracking-wider transition-opacity', isCollapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100')}>بابيون</span>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -153,7 +160,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden print:overflow-visible print:h-auto print:block">
         {/* Header */}
-        <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6 shadow-sm print:hidden sticky top-0 z-30">
+        {/* Header */}
+        <header className="h-14 bg-white/80 backdrop-blur-md border-b border-gray-200 flex items-center justify-between px-4 lg:px-6 shadow-sm print:hidden sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden text-gray-500 hover:text-black p-2">
               <Menu size={20} />

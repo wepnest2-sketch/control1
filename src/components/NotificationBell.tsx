@@ -30,7 +30,7 @@ export default function NotificationBell() {
           console.log('New order received:', payload);
           setUnreadCount(prev => prev + 1);
           setNotifications(prev => [payload.new, ...prev]);
-          
+
           // Play sound
           playNotificationSound();
 
@@ -38,7 +38,7 @@ export default function NotificationBell() {
           if ('Notification' in window && Notification.permission === 'granted') {
             new Notification('طلب جديد!', {
               body: `طلب جديد #${payload.new.order_number || ''} من ${payload.new.customer_first_name || 'عميل'}`,
-              icon: '/vite.svg', // Fallback icon
+              icon: 'https://res.cloudinary.com/dlwuxgvse/image/upload/v1771972557/434186110_754831856741654_3189618891943124343_n_y4f1iu.jpg',
               tag: 'new-order'
             });
           }
@@ -57,23 +57,27 @@ export default function NotificationBell() {
     try {
       const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioContext) return;
-      
+
       const ctx = new AudioContext();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
 
-      osc.connect(gain);
-      gain.connect(ctx.destination);
+      const playTone = (freq: number, start: number, duration: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + start);
+        gain.gain.setValueAtTime(0, ctx.currentTime + start);
+        gain.gain.linearRampToValueAtTime(0.1, ctx.currentTime + start + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + start + duration);
+        osc.start(ctx.currentTime + start);
+        osc.stop(ctx.currentTime + start + duration);
+      };
 
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(500, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(1000, ctx.currentTime + 0.1);
-      
-      gain.gain.setValueAtTime(0.1, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-
-      osc.start();
-      osc.stop(ctx.currentTime + 0.5);
+      // iPhone "Tri-tone" inspired sound
+      playTone(783.99, 0, 0.2);     // G5
+      playTone(1046.50, 0.15, 0.2); // C6
+      playTone(1318.51, 0.3, 0.4);  // E6
     } catch (e) {
       console.error('Error playing sound:', e);
     }
@@ -106,7 +110,7 @@ export default function NotificationBell() {
           .from('orders')
           .select('*', { count: 'exact', head: true })
           .eq('is_read', false);
-        
+
         setUnreadCount(count || 0);
       }
     } catch (error) {
@@ -138,7 +142,7 @@ export default function NotificationBell() {
 
   return (
     <div className="relative">
-      <button 
+      <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2.5 rounded-full hover:bg-gray-100 transition-colors text-gray-600"
       >
@@ -151,19 +155,19 @@ export default function NotificationBell() {
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)}></div>
-          <div className="absolute left-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-            <div className="p-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
-              <h3 className="font-bold text-gray-900">الإشعارات</h3>
+          <div className="absolute left-0 mt-3 w-80 bg-white/90 backdrop-blur-xl rounded-[28px] shadow-2xl border border-white/40 z-50 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="p-5 border-b border-gray-100/50 flex justify-between items-center bg-white/50">
+              <h3 className="font-bold text-gray-900 text-lg">الإشعارات</h3>
               {unreadCount > 0 && (
-                <button onClick={markAllAsRead} className="text-xs text-blue-600 hover:text-blue-700 font-medium">
-                  تحديد الكل كمقروء
+                <button onClick={markAllAsRead} className="text-xs text-blue-600 hover:text-blue-700 font-bold bg-blue-50 px-2.5 py-1 rounded-full text-center">
+                  تحديد الكل
                 </button>
               )}
             </div>
 
             {permission !== 'granted' && (
               <div className="p-3 bg-blue-50 border-b border-blue-100">
-                <button 
+                <button
                   onClick={requestPermission}
                   className="w-full py-2 px-3 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                 >
@@ -172,13 +176,13 @@ export default function NotificationBell() {
                 </button>
               </div>
             )}
-            
+
             <div className="max-h-[400px] overflow-y-auto">
               {notifications.length > 0 ? (
                 <div className="divide-y divide-gray-50">
                   {notifications.map((notification) => (
-                    <div 
-                      key={notification.id} 
+                    <div
+                      key={notification.id}
                       onClick={() => markAsRead(notification.id)}
                       className="p-4 hover:bg-gray-50 cursor-pointer transition-colors flex gap-3 items-start"
                     >

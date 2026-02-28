@@ -14,7 +14,7 @@ export default function Products() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
-  
+
   // Quantity Update Modal State
   const [isQuantityModalOpen, setIsQuantityModalOpen] = useState(false);
   const [selectedProductForQty, setSelectedProductForQty] = useState<Product | null>(null);
@@ -132,15 +132,15 @@ export default function Products() {
             color_hex: v.color_hex,
             quantity: v.quantity
           }));
-          
+
           const { error: variantsError } = await supabase
             .from('product_variants')
             .insert(variantsToInsert);
-            
+
           if (variantsError) console.error('Error saving variants:', variantsError);
         }
       }
-      
+
       setIsModalOpen(false);
       fetchProducts();
     } catch (error) {
@@ -155,7 +155,7 @@ export default function Products() {
 
   const handleDelete = async () => {
     if (!deleteModal.productId) return;
-    
+
     try {
       // 1. Unlink from orders first (preserve history, remove constraint)
       // We set product_id to null so the order item remains but isn't tied to the deleted product
@@ -171,7 +171,7 @@ export default function Products() {
         .from('product_variants')
         .delete()
         .eq('product_id', deleteModal.productId);
-        
+
       if (variantsError) throw variantsError;
 
       // 3. Delete the product
@@ -179,7 +179,7 @@ export default function Products() {
         .from('products')
         .delete()
         .eq('id', deleteModal.productId);
-      
+
       if (productError) throw productError;
 
       fetchProducts();
@@ -209,7 +209,7 @@ export default function Products() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-serif font-bold text-gray-900">{t('products')}</h1>
-        <button 
+        <button
           onClick={() => handleOpenModal()}
           className="bg-black text-white px-6 py-3 rounded-xl flex items-center gap-2 hover:bg-gray-800 transition-colors shadow-lg shadow-gray-200"
         >
@@ -217,8 +217,65 @@ export default function Products() {
         </button>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+        {/* Mobile-optimized cards */}
+        <div className="lg:hidden divide-y divide-gray-100">
+          {products.map((product) => (
+            <div key={product.id} className="p-4 flex gap-4 items-center animate-ios group active:bg-gray-50 transition-colors">
+              <div className="w-20 h-20 rounded-2xl bg-gray-50 overflow-hidden border border-gray-100 flex-shrink-0 relative">
+                {product.images?.[0] ? (
+                  <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-300">
+                    <ImageIcon size={32} />
+                  </div>
+                )}
+                {product.images && product.images.length > 1 && (
+                  <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-md backdrop-blur-sm">
+                    +{product.images.length - 1}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex-1 min-w-0" onClick={() => handleOpenModal(product)}>
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="font-bold text-gray-900 truncate">{product.name}</h3>
+                  {!product.is_active && (
+                    <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-[10px] font-bold uppercase tracking-wider">
+                      {t('draft')}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-gray-500 mb-2 truncate">
+                  {categories.find(c => c.id === product.category_id)?.name || '-'}
+                </p>
+                <div className="flex items-center justify-between">
+                  <span className="font-mono font-bold text-gray-900">
+                    {formatNumber(product.price)} <span className="text-[10px] font-sans font-normal opacity-60">{t('currency')}</span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => handleOpenModal(product)}
+                  className="p-3 bg-blue-50 text-blue-600 rounded-full shadow-sm active:scale-90 transition-transform"
+                >
+                  <Edit2 size={20} />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleOpenQuantityModal(product); }}
+                  className="p-3 bg-gray-50 text-gray-600 rounded-full shadow-sm active:scale-90 transition-transform"
+                >
+                  <Layers size={20} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop Table View */}
+        <div className="hidden lg:block overflow-x-auto">
           <table className="w-full text-right text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
@@ -261,21 +318,21 @@ export default function Products() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-left space-x-2 space-x-reverse">
-                    <button 
+                    <button
                       onClick={() => handleOpenQuantityModal(product)}
                       className="p-2.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-black hover:text-white transition-all"
                       title={t('update_quantities')}
                     >
                       <Layers size={18} />
                     </button>
-                    <button 
+                    <button
                       onClick={() => handleOpenModal(product)}
                       className="p-2.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-black hover:text-white transition-all"
                       title={t('edit')}
                     >
                       <Edit2 size={18} />
                     </button>
-                    <button 
+                    <button
                       onClick={() => confirmDelete(product.id)}
                       className="p-2.5 bg-red-50 text-red-500 rounded-lg hover:bg-red-600 hover:text-white transition-all"
                       title={t('delete')}
@@ -302,6 +359,7 @@ export default function Products() {
         isDangerous={true}
       />
 
+
       {/* Edit/Add Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
@@ -314,7 +372,7 @@ export default function Products() {
                 <X size={24} />
               </button>
             </div>
-            
+
             <form onSubmit={handleSubmit} className="p-8 space-y-8">
               <div className="grid grid-cols-2 gap-8">
                 <div className="space-y-2">
@@ -323,7 +381,7 @@ export default function Products() {
                     type="text"
                     required
                     value={formData.name}
-                    onChange={e => setFormData({...formData, name: e.target.value})}
+                    onChange={e => setFormData({ ...formData, name: e.target.value })}
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
                     placeholder={t('product_name')}
                   />
@@ -332,7 +390,7 @@ export default function Products() {
                   <label className="text-sm font-bold text-gray-700">{t('category')}</label>
                   <select
                     value={formData.category_id || ''}
-                    onChange={e => setFormData({...formData, category_id: e.target.value})}
+                    onChange={e => setFormData({ ...formData, category_id: e.target.value })}
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
                   >
                     <option value="">{t('category')}</option>
@@ -348,7 +406,7 @@ export default function Products() {
                 <textarea
                   rows={4}
                   value={formData.description || ''}
-                  onChange={e => setFormData({...formData, description: e.target.value})}
+                  onChange={e => setFormData({ ...formData, description: e.target.value })}
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
                   placeholder={t('description')}
                 />
@@ -362,7 +420,7 @@ export default function Products() {
                     required
                     dir="ltr"
                     value={formData.price || ''}
-                    onChange={e => setFormData({...formData, price: Number(e.target.value)})}
+                    onChange={e => setFormData({ ...formData, price: Number(e.target.value) })}
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white text-right"
                   />
                 </div>
@@ -372,7 +430,7 @@ export default function Products() {
                     type="number"
                     dir="ltr"
                     value={formData.discount_price || ''}
-                    onChange={e => setFormData({...formData, discount_price: e.target.value ? Number(e.target.value) : null})}
+                    onChange={e => setFormData({ ...formData, discount_price: e.target.value ? Number(e.target.value) : null })}
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white text-right"
                   />
                 </div>
@@ -382,7 +440,7 @@ export default function Products() {
                 <label className="text-sm font-bold text-gray-700">{t('images')}</label>
                 <div className="flex gap-3 items-start">
                   <div className="flex-1">
-                    <ImageUpload 
+                    <ImageUpload
                       onChange={handleImageUpload}
                       placeholder={t('add')}
                       className="w-full"
@@ -410,7 +468,7 @@ export default function Products() {
                   type="checkbox"
                   id="is_active"
                   checked={formData.is_active}
-                  onChange={e => setFormData({...formData, is_active: e.target.checked})}
+                  onChange={e => setFormData({ ...formData, is_active: e.target.checked })}
                   className="w-5 h-5 rounded border-gray-300 text-black focus:ring-black cursor-pointer"
                 />
                 <label htmlFor="is_active" className="text-sm font-bold text-gray-900 cursor-pointer">{t('is_active')}</label>
@@ -421,7 +479,7 @@ export default function Products() {
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-bold text-gray-900">{t('variants')}</h3>
                 </div>
-                
+
                 {/* Add Variant Form */}
                 <div className="grid grid-cols-4 gap-4 mb-6 bg-gray-50 p-5 rounded-xl border border-gray-100">
                   <input
@@ -468,11 +526,11 @@ export default function Products() {
                         }
                       } else {
                         // If creating new, save to local state with temp ID
-                        const tempVariant = { 
-                          ...newVariantBase, 
-                          id: `temp-${Date.now()}`, 
-                          product_id: '', 
-                          created_at: new Date().toISOString() 
+                        const tempVariant = {
+                          ...newVariantBase,
+                          id: `temp-${Date.now()}`,
+                          product_id: '',
+                          created_at: new Date().toISOString()
                         };
                         setVariants([...variants, tempVariant]);
                       }
@@ -497,7 +555,7 @@ export default function Products() {
                       </div>
                       <div className="flex items-center gap-6">
                         <span className="font-mono text-gray-600 font-medium">{t('quantity')}: {formatNumber(v.quantity)}</span>
-                        <button 
+                        <button
                           type="button"
                           onClick={() => {
                             if (v.id.startsWith('temp-')) {
@@ -549,7 +607,7 @@ export default function Products() {
                 <X size={24} />
               </button>
             </div>
-            
+
             <div className="space-y-4 max-h-[60vh] overflow-y-auto">
               {variants.map(v => (
                 <div key={v.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
