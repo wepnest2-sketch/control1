@@ -1,178 +1,218 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Category } from '../types/database';
-import { Plus, Edit2, Trash2, X } from 'lucide-react';
-import ConfirmationModal from '../components/ConfirmationModal';
-import ImageUpload from '../components/ImageUpload';
+import { ShoppingBag, Package, Users, DollarSign, AlertTriangle, TrendingUp } from 'lucide-react';
+import { formatNumber, safeDate } from '../lib/utils';
 import { useLanguage } from '../lib/i18n';
+import { useNavigate } from 'react-router-dom';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { format, subDays } from 'date-fns';
+import { ar } from 'date-fns/locale';
 
-export default function Categories() {
-  const { t } = useLanguage();
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [formData, setFormData] = useState<Partial<Category>>({
-    name: '',
-    image_url: '',
-    display_order: 0
+export default function Dashboard() {
+  const { t, language } = useLanguage();
+  const navigate = useNavigate();
+  const [stats, setStats] = useState({
+    totalOrders: 0,
+    totalProducts: 0,
+    totalRevenue: 0,
+    pendingOrders: 0
   });
-
-  // Confirmation Modal State
-  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; categoryId: string | null }>({
-    isOpen: false,
-    categoryId: null
-  });
+  const [lowStockProducts, setLowStockProducts] = useState<any[]>([]);
+  const [revenueData, setRevenueData] = useState<any[]>([]);
 
   useEffect(() => {
-    fetchCategories();
-  }, []);
+    async function fetchStats() {
+      const { count: ordersCount } = await supabase.from('orders').select('*', { count: 'exact', head: true });
+      const { count: productsCount } = await supabase.from('products').select('*', { count: 'exact', head: true });
+      const { count: pendingCount } = await supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'pending');
+      
+      const { data: revenueData } = await supabase.from('orders').select('total_price').neq('status', 'cancelled');
+      const totalRevenue = revenueData?.reduce((acc, curr) => acc + (curr.total_price || 0), 0) || 0;
 
-  async function fetchCategories() {
-    const { data } = await supabase.from('categories').select('*').order('display_order', { ascending: true });
-    if (data) setCategories(data);
-  }
-
-  const handleOpenModal = (category?: Category) => {
-    if (category) {
-      setEditingCategory(category);
-      setFormData(category);
-    } else {
-      setEditingCategory(null);
-      setFormData({ name: '', image_url: '', display_order: 0 });
+      setStats({
+        totalOrders: ordersCount || 0,
+        totalProducts: productsCount || 0,
+        totalRevenue,
+        pendingOrders: pendingCount || 0
+      });
     }
-    setIsModalOpen(true);
-  };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      if (editingCategory) {
-        await supabase.from('categories').update(formData).eq('id', editingCategory.id);
-      } else {
-        await supabase.from('categories').insert([formData]);
+    async function fetchLowStock() {
+      // Fetch variants with quantity < 5
+      const { data } = await supabase
+        .from('product_variants')
+        .select('*, products(name, images)')
+        .lt('quantity', 5)
+        .limit(5);
+      
+      if (data) setLowStockProducts(data);
+    }
+
+    async function fetchRevenueChart() {
+      const last7Days = Array.from({ length: 7 }, (_, i) => {
+        const d = subDays(new Date(), i);
+        return format(d, 'yyyy-MM-dd');
+      }).reverse();
+
+      const { data } = await supabase
+        .from('orders')
+        .select('created_at, total_price')
+        .neq('status', 'cancelled')
+        .gte('created_at', last7Days[0]);
+
+      if (data) {
+        const chartData = last7Days.map(date => {
+          const dayRevenue = data
+            .filter(o => o.created_at.startsWith(date))
+            .reduce((sum, o) => sum + (o.total_price || 0), 0);
+          
+          return {
+            date: format(safeDate(date), 'EEE', { locale: language === 'ar' ? ar : undefined }),
+            revenue: dayRevenue
+          };
+        });
+        setRevenueData(chartData);
       }
-      setIsModalOpen(false);
-      fetchCategories();
-    } catch (error) {
-      console.error(error);
     }
-  };
 
-  const confirmDelete = (id: string) => {
-    setDeleteModal({ isOpen: true, categoryId: id });
-  };
+    fetchStats();
+    fetchLowStock();
+    fetchRevenueChart();
+  }, [language]);
 
-  const handleDelete = async () => {
-    if (!deleteModal.categoryId) return;
-    await supabase.from('categories').delete().eq('id', deleteModal.categoryId);
-    fetchCategories();
-    setDeleteModal({ isOpen: false, categoryId: null });
-  };
+  const StatCard = ({ title, value, icon: Icon, subtext, onClick }: any) => (
+    <div 
+      onClick={onClick}
+      className={`bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow ${onClick ? 'cursor-pointer hover:border-black/10' : ''}`}
+    >
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">{title}</h3>
+        <div className="p-3 bg-black/5 rounded-xl">
+          <Icon size={24} className="text-black" />
+        </div>
+      </div>
+      <div className="text-4xl font-bold text-gray-900 font-serif mb-2">{value}</div>
+      {subtext && <p className="text-sm text-gray-400">{subtext}</p>}
+    </div>
+  );
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-serif font-bold text-gray-900">{t('categories')}</h1>
-        <button 
-          id="btn-add-category"
-          onClick={() => handleOpenModal()}
-          className="bg-black text-white px-6 py-3 rounded-xl flex items-center gap-2 hover:bg-gray-800 transition-colors shadow-lg shadow-gray-200"
-        >
-          <Plus size={20} /> {t('add_category')}
-        </button>
+    <div className="space-y-10">
+      <div>
+        <h1 className="text-4xl font-serif font-bold text-gray-900 mb-3">{t('welcome_title')}</h1>
+        <p className="text-gray-500 text-lg">{t('welcome_subtitle')}</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {categories.map((category) => (
-          <div key={category.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm group hover:shadow-md transition-shadow">
-            <div className="h-48 bg-gray-100 relative overflow-hidden">
-              {category.image_url ? (
-                <img src={category.image_url} alt={category.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-300 bg-gray-50">{t('no_image')}</div>
-              )}
-              <div className="absolute top-3 left-3 flex gap-2">
-                <button onClick={() => handleOpenModal(category)} className="p-2.5 bg-white rounded-full shadow-lg hover:bg-black hover:text-white transition-colors">
-                  <Edit2 size={16} />
-                </button>
-                <button onClick={() => confirmDelete(category.id)} className="p-2.5 bg-white rounded-full shadow-lg hover:bg-red-600 hover:text-white transition-colors text-red-500">
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              <h3 className="font-bold text-xl text-gray-900">{category.name}</h3>
-              <p className="text-xs text-gray-400 mt-2 font-mono">{t('display_order')}: {category.display_order}</p>
-            </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <StatCard 
+          title={t('total_sales')} 
+          value={`${formatNumber(stats.totalRevenue)} ${t('currency')}`} 
+          icon={DollarSign} 
+        />
+        <StatCard 
+          title={t('orders')} 
+          value={formatNumber(stats.totalOrders)} 
+          icon={ShoppingBag} 
+          onClick={() => navigate('/orders')}
+        />
+        <StatCard 
+          title={t('active_orders')} 
+          value={formatNumber(stats.pendingOrders)} 
+          icon={Users}
+          subtext={t('pending')}
+          onClick={() => navigate('/orders')}
+        />
+        <StatCard 
+          title={t('products_count')} 
+          value={formatNumber(stats.totalProducts)} 
+          icon={Package} 
+          onClick={() => navigate('/products')}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Revenue Chart */}
+        <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="font-bold text-gray-900 flex items-center gap-2">
+              <TrendingUp size={20} className="text-green-500" />
+              {t('revenue_chart')}
+            </h3>
           </div>
-        ))}
-      </div>
-
-      {/* Confirmation Modal */}
-      <ConfirmationModal
-        isOpen={deleteModal.isOpen}
-        onClose={() => setDeleteModal({ isOpen: false, categoryId: null })}
-        onConfirm={handleDelete}
-        title={t('delete_category')}
-        message={t('confirm_delete_category')}
-        confirmText={t('yes_delete')}
-        cancelText={t('cancel')}
-        isDangerous={true}
-      />
-
-      {/* Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-md p-8 shadow-2xl">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl font-serif font-bold text-gray-900">
-                {editingCategory ? t('edit_category') : t('add_category')}
-              </h2>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                <X size={24} />
-              </button>
-            </div>
-            
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">{t('category_name')}</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={e => setFormData({...formData, name: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
-                  placeholder={t('category_name')}
+          <div className="h-[300px] w-full" dir="ltr">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={revenueData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                <XAxis 
+                  dataKey="date" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: '#9ca3af', fontSize: 12 }} 
+                  dy={10}
                 />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">{t('category_image')}</label>
-                <ImageUpload
-                  value={formData.image_url || ''}
-                  onChange={(url) => setFormData({...formData, image_url: url})}
-                  onRemove={() => setFormData({...formData, image_url: ''})}
-                  placeholder={t('upload_image')}
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: '#9ca3af', fontSize: 12 }} 
+                  tickFormatter={(value) => `${value / 1000}k`}
                 />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">{t('display_order')}</label>
-                <input
-                  type="number"
-                  value={formData.display_order}
-                  onChange={e => setFormData({...formData, display_order: Number(e.target.value)})}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
+                <Tooltip 
+                  cursor={{ fill: '#f9fafb' }}
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                 />
-              </div>
-              <button
-                type="submit"
-                className="w-full py-3.5 rounded-xl bg-black text-white hover:bg-gray-800 transition-colors mt-6 font-bold shadow-lg shadow-gray-200"
-              >
-                {t('save')}
-              </button>
-            </form>
+                <Bar dataKey="revenue" fill="#000000" radius={[4, 4, 0, 0]} barSize={40} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
-      )}
+
+        {/* Low Stock Alert */}
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="flex items-center gap-2 mb-4 text-amber-600">
+            <AlertTriangle size={24} />
+            <h3 className="font-bold text-lg">{t('low_stock')}</h3>
+          </div>
+          <p className="text-sm text-gray-500 mb-6">{t('low_stock_desc')}</p>
+          
+          <div className="space-y-4">
+            {lowStockProducts.length > 0 ? (
+              lowStockProducts.map((item) => (
+                <div key={item.id} className="flex items-center gap-4 p-3 bg-amber-50 rounded-xl border border-amber-100">
+                  <div className="w-12 h-12 rounded-lg bg-white overflow-hidden border border-amber-100 flex-shrink-0">
+                    {item.products?.images?.[0] && (
+                      <img src={item.products.images[0]} alt="" className="w-full h-full object-cover" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-gray-900 truncate text-sm">{item.products?.name}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {item.color_name} - {item.size}
+                    </p>
+                  </div>
+                  <div className="text-center px-2">
+                    <span className="block text-lg font-bold text-amber-600 leading-none">{item.quantity}</span>
+                    <span className="text-[10px] text-amber-600/70">{t('quantity')}</span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8 text-gray-400 text-sm">
+                <Package size={32} className="mx-auto mb-2 opacity-20" />
+                <p>المخزون بحالة جيدة</p>
+              </div>
+            )}
+            
+            {lowStockProducts.length > 0 && (
+              <button 
+                onClick={() => navigate('/products')}
+                className="w-full py-3 mt-2 text-sm font-bold text-amber-700 hover:bg-amber-50 rounded-xl transition-colors"
+              >
+                {t('view_all')}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

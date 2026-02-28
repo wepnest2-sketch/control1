@@ -1,174 +1,312 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import { Bell, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { AboutUsContent } from '../types/database';
-import { Plus, Trash2 } from 'lucide-react';
-import ConfirmationModal from '../components/ConfirmationModal';
-import { useLanguage } from '../lib/i18n';
+import { useNavigate } from 'react-router-dom';
+import { format } from 'date-fns';
+import { ar } from 'date-fns/locale';
+import { safeDate } from '../lib/utils';
 
-export default function AboutUs() {
-  const { t } = useLanguage();
-  const [content, setContent] = useState<AboutUsContent | null>(null);
-  const [loading, setLoading] = useState(false);
-  
-  // Confirmation Modal State
-  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; featureIndex: number | null }>({
-    isOpen: false,
-    featureIndex: null
-  });
+export default function NotificationBell() {
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [permission, setPermission] = useState(Notification.permission);
+  const navigate = useNavigate();
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
-    fetchContent();
+    // Initialize AudioContext on user interaction
+    const initAudio = () => {
+      if (!audioContextRef.current) {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContext) {
+          audioContextRef.current = new AudioContext();
+        }
+      }
+      if (audioContextRef.current?.state === 'suspended') {
+        audioContextRef.current.resume();
+      }
+    };
+
+    const handleSoundChange = () => {
+      playNotificationSound();
+    };
+
+    const handleVolumeChange = () => {
+      playNotificationSound();
+    };
+
+    window.addEventListener('click', initAudio);
+    window.addEventListener('touchstart', initAudio);
+    window.addEventListener('sound-changed', handleSoundChange);
+    window.addEventListener('volume-changed', handleVolumeChange);
+
+    return () => {
+      window.removeEventListener('click', initAudio);
+      window.removeEventListener('touchstart', initAudio);
+      window.removeEventListener('sound-changed', handleSoundChange);
+      window.removeEventListener('volume-changed', handleVolumeChange);
+    };
   }, []);
 
-  async function fetchContent() {
-    const { data } = await supabase.from('about_us_content').select('*').single();
-    if (data) {
-      setContent(data);
-    } else {
-      // Create default if not exists
-      const defaultContent = {
-        title: 'من نحن',
-        content: 'مرحباً بكم في بابيون.',
-        features: []
-      };
-      const { data: newData } = await supabase.from('about_us_content').insert([defaultContent]).select().single();
-      if (newData) setContent(newData);
+  useEffect(() => {
+    // Request notification permission on mount if default
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().then(setPermission);
     }
-  }
 
-  const handleSave = async () => {
-    if (!content) return;
-    setLoading(true);
-    await supabase.from('about_us_content').update({
-      title: content.title,
-      content: content.content,
-      features: content.features
-    }).eq('id', content.id);
-    setLoading(false);
-    alert(t('settings_saved'));
+    fetchNotifications();
+
+    // Subscribe to new orders
+    const channel = supabase
+      .channel('orders-channel')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'orders' },
+        (payload) => {
+          console.log('New order received:', payload);
+          setUnreadCount(prev => prev + 1);
+          setNotifications(prev => [payload.new, ...prev]);
+          
+          // Play sound
+          playNotificationSound();
+
+          // Show system notification
+          if ('Notification' in window && Notification.permission === 'granted') {
+            try {
+              new Notification('طلب جديد!', {
+                body: `طلب جديد #${payload.new.order_number || ''} من ${payload.new.customer_first_name || 'عميل'}`,
+                icon: '/vite.svg', // Fallback icon
+                tag: 'new-order'
+              });
+            } catch (e) {
+              console.error('Notification error:', e);
+            }
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('Subscription status:', status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const playNotificationSound = () => {
+    try {
+      if (!audioContextRef.current) {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContext) {
+          audioContextRef.current = new AudioContext();
+        }
+      }
+
+      const ctx = audioContextRef.current;
+      if (!ctx) return;
+
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      const soundType = localStorage.getItem('notificationSound') || 'glass';
+      const volume = parseFloat(localStorage.getItem('notificationVolume') || '0.5');
+      const now = ctx.currentTime;
+
+      // Helper to play a tone
+      const playTone = (freq: number, startTime: number, duration: number, type: OscillatorType = 'sine') => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.type = type;
+        o.frequency.setValueAtTime(freq, startTime);
+        g.gain.setValueAtTime(0, startTime);
+        g.gain.linearRampToValueAtTime(volume, startTime + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        o.start(startTime);
+        o.stop(startTime + duration);
+      };
+
+      if (soundType === 'tritone') {
+        // Tri-tone (iPhone Classic)
+        playTone(1318.51, now, 0.6); // E6
+        playTone(1046.50, now + 0.15, 0.6); // C6
+        playTone(1567.98, now + 0.3, 1.2); // G6
+      } else if (soundType === 'chord') {
+        // Chord (iPhone) - Major Chord
+        playTone(523.25, now, 0.8, 'triangle'); // C5
+        playTone(659.25, now, 0.8, 'triangle'); // E5
+        playTone(783.99, now, 0.8, 'triangle'); // G5
+        playTone(1046.50, now, 0.8, 'triangle'); // C6
+      } else if (soundType === 'note') {
+        // Note (iPhone) - Simple clean ping
+        playTone(987.77, now, 0.8, 'sine'); // B5
+      } else if (soundType === 'aurora') {
+        // Aurora (iPhone) - Rising dreamy sound
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.type = 'sine';
+        o.frequency.setValueAtTime(440, now);
+        o.frequency.exponentialRampToValueAtTime(880, now + 1);
+        g.gain.setValueAtTime(0, now);
+        g.gain.linearRampToValueAtTime(volume * 0.5, now + 0.5);
+        g.gain.linearRampToValueAtTime(0, now + 1.5);
+        o.start(now);
+        o.stop(now + 1.5);
+      } else if (soundType === 'bell') {
+        // Classic Bell
+        playTone(500, now, 1, 'triangle');
+      } else if (soundType === 'digital') {
+        // Digital Beep
+        playTone(800, now, 0.1, 'square');
+        playTone(1200, now + 0.1, 0.1, 'square');
+      } else if (soundType === 'subtle') {
+        // Subtle Click
+        playTone(400, now, 0.1, 'sine');
+      } else {
+        // Default: Glass (Soft)
+        playTone(880, now, 1.5, 'sine');
+      }
+    } catch (e) {
+      console.error('Error playing sound:', e);
+    }
   };
 
-  const addFeature = () => {
-    if (!content) return;
-    const newFeature = { title: '', description: '' };
-    setContent({ ...content, features: [...(content.features || []), newFeature] });
+  const requestPermission = () => {
+    Notification.requestPermission().then(setPermission);
+    playNotificationSound(); // Test sound
   };
 
-  const updateFeature = (index: number, field: 'title' | 'description', value: string) => {
-    if (!content) return;
-    const newFeatures = [...(content.features || [])];
-    // @ts-ignore
-    newFeatures[index] = { ...newFeatures[index], [field]: value };
-    setContent({ ...content, features: newFeatures });
+  const fetchNotifications = async () => {
+    try {
+      // Fetch unread orders. Assuming 'is_read' column exists.
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('is_read', false)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) {
+        console.error('Error fetching notifications:', error);
+        return;
+      }
+
+      if (data) {
+        setNotifications(data);
+        // Count total unread
+        const { count } = await supabase
+          .from('orders')
+          .select('*', { count: 'exact', head: true })
+          .eq('is_read', false);
+        
+        setUnreadCount(count || 0);
+      }
+    } catch (error) {
+      console.error('Error in fetchNotifications:', error);
+    }
   };
 
-  const confirmRemoveFeature = (index: number) => {
-    setDeleteModal({ isOpen: true, featureIndex: index });
+  const markAsRead = async (orderId: string) => {
+    try {
+      await supabase.from('orders').update({ is_read: true }).eq('id', orderId);
+      setUnreadCount(prev => Math.max(0, prev - 1));
+      setNotifications(prev => prev.filter(n => n.id !== orderId));
+      setIsOpen(false);
+      navigate('/orders'); // Navigate to orders page
+    } catch (error) {
+      console.error('Error marking as read:', error);
+    }
   };
 
-  const handleRemoveFeature = () => {
-    if (!content || deleteModal.featureIndex === null) return;
-    const newFeatures = content.features.filter((_: any, i: number) => i !== deleteModal.featureIndex);
-    setContent({ ...content, features: newFeatures });
-    setDeleteModal({ isOpen: false, featureIndex: null });
+  const markAllAsRead = async () => {
+    try {
+      await supabase.from('orders').update({ is_read: true }).eq('is_read', false);
+      setUnreadCount(0);
+      setNotifications([]);
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+    }
   };
-
-  if (!content) return <div>{t('loading')}</div>;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-3xl font-serif font-bold text-gray-900">{t('about_us')}</h1>
-        <p className="text-gray-500 mt-2">{t('about_us_desc')}</p>
-      </div>
+    <div className="relative">
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="relative p-2.5 rounded-full hover:bg-gray-100 transition-colors text-gray-600"
+      >
+        <Bell size={22} />
+        {unreadCount > 0 && (
+          <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
+        )}
+      </button>
 
-      <div className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm space-y-8">
-        <div className="space-y-3">
-          <label className="text-sm font-bold text-gray-700">{t('page_title')}</label>
-          <input
-            type="text"
-            value={content.title}
-            onChange={e => setContent({...content, title: e.target.value})}
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
-          />
-        </div>
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)}></div>
+          <div className="absolute left-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="p-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
+              <h3 className="font-bold text-gray-900">الإشعارات</h3>
+              {unreadCount > 0 && (
+                <button onClick={markAllAsRead} className="text-xs text-blue-600 hover:text-blue-700 font-medium">
+                  تحديد الكل كمقروء
+                </button>
+              )}
+            </div>
 
-        <div className="space-y-3">
-          <label className="text-sm font-bold text-gray-700">{t('content')}</label>
-          <textarea
-            rows={6}
-            value={content.content}
-            onChange={e => setContent({...content, content: e.target.value})}
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
-          />
-        </div>
-
-        <div className="space-y-6">
-          <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-            <label className="text-lg font-bold text-gray-900">{t('features_values')}</label>
-            <button 
-              onClick={addFeature}
-              className="text-sm flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors shadow-md"
-            >
-              <Plus size={16} /> {t('add_feature')}
-            </button>
-          </div>
-          
-          <div className="space-y-4">
-            {content.features?.map((feature: any, index: number) => (
-              <div key={index} className="flex gap-4 items-start bg-gray-50 p-6 rounded-xl border border-gray-100 group hover:border-gray-300 transition-colors">
-                <div className="flex-1 space-y-3">
-                  <input
-                    type="text"
-                    placeholder={t('feature_title')}
-                    value={feature.title}
-                    onChange={e => updateFeature(index, 'title', e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-black font-bold"
-                  />
-                  <textarea
-                    rows={2}
-                    placeholder={t('feature_description')}
-                    value={feature.description}
-                    onChange={e => updateFeature(index, 'description', e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-black"
-                  />
-                </div>
+            {permission !== 'granted' && (
+              <div className="p-3 bg-blue-50 border-b border-blue-100">
                 <button 
-                  onClick={() => confirmRemoveFeature(index)}
-                  className="p-3 bg-white rounded-lg shadow-sm text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                  onClick={requestPermission}
+                  className="w-full py-2 px-3 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                 >
-                  <Trash2 size={18} />
+                  <Bell size={14} />
+                  تفعيل التنبيهات الصوتية
                 </button>
               </div>
-            ))}
-            {(!content.features || content.features.length === 0) && (
-              <p className="text-sm text-gray-400 text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-200">{t('no_features')}</p>
             )}
+            
+            <div className="max-h-[400px] overflow-y-auto">
+              {notifications.length > 0 ? (
+                <div className="divide-y divide-gray-50">
+                  {notifications.map((notification) => (
+                    <div 
+                      key={notification.id} 
+                      onClick={() => markAsRead(notification.id)}
+                      className="p-4 hover:bg-gray-50 cursor-pointer transition-colors flex gap-3 items-start"
+                    >
+                      <div className="w-2 h-2 mt-2 rounded-full bg-blue-500 flex-shrink-0"></div>
+                      <div>
+                        <p className="text-sm font-bold text-gray-900">طلب جديد #{notification.order_number}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          من {notification.customer_first_name} {notification.customer_last_name}
+                        </p>
+                        <p className="text-[10px] text-gray-400 mt-2 font-mono">
+                          {format(safeDate(notification.created_at), 'HH:mm - d MMM', { locale: ar })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-8 text-center text-gray-400 text-sm">
+                  لا توجد إشعارات جديدة
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-
-        <div className="flex justify-end pt-4">
-          <button
-            onClick={handleSave}
-            disabled={loading}
-            className="px-10 py-4 bg-black text-white rounded-xl hover:bg-gray-800 transition-colors font-bold shadow-lg shadow-gray-200 disabled:opacity-50 text-lg"
-          >
-            {loading ? t('saving') : t('save_changes')}
-          </button>
-        </div>
-      </div>
-
-      {/* Confirmation Modal */}
-      <ConfirmationModal
-        isOpen={deleteModal.isOpen}
-        onClose={() => setDeleteModal({ isOpen: false, featureIndex: null })}
-        onConfirm={handleRemoveFeature}
-        title={t('delete_feature')}
-        message={t('confirm_delete_feature')}
-        confirmText={t('yes_delete')}
-        cancelText={t('cancel')}
-        isDangerous={true}
-      />
+        </>
+      )}
     </div>
   );
 }
