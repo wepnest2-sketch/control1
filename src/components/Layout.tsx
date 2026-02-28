@@ -88,10 +88,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 bg-white text-gray-900 transition-transform duration-200 ease-in-out shadow-lg print:hidden',
+          'fixed inset-y-0 z-50 bg-white text-gray-900 transition-transform duration-200 ease-in-out shadow-lg print:hidden',
           isCollapsed ? 'w-20' : 'w-64',
           // mobile visibility
-          isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0 lg:static lg:inset-auto'
+          language === 'ar' 
+            ? (isSidebarOpen ? 'translate-x-0' : 'translate-x-[100%] lg:translate-x-0')
+            : (isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'),
+          'lg:static lg:inset-auto',
+          language === 'ar' ? 'right-0' : 'left-0'
         )}
         aria-expanded={!isCollapsed}
       >
@@ -149,7 +153,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden print:overflow-visible print:h-auto print:block">
         {/* Header */}
-        <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6 shadow-sm print:hidden">
+        <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6 shadow-sm print:hidden sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden text-gray-500 hover:text-black p-2">
               <Menu size={20} />
