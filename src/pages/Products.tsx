@@ -36,7 +36,8 @@ export default function Products() {
     price: 0,
     discount_price: 0,
     category_id: '',
-    images: [],
+    image_url: '',
+    product_gallery: [],
     is_active: true
   });
 
@@ -63,7 +64,10 @@ export default function Products() {
   const handleOpenModal = async (product?: Product) => {
     if (product) {
       setEditingProduct(product);
-      setFormData(product);
+      setFormData({
+        ...product,
+        product_gallery: product.product_gallery || []
+      });
       await fetchVariants(product.id);
     } else {
       setEditingProduct(null);
@@ -73,7 +77,8 @@ export default function Products() {
         price: 0,
         discount_price: 0,
         category_id: categories[0]?.id || '',
-        images: [],
+        image_url: '',
+        product_gallery: [],
         is_active: true
       });
       setVariants([]);
@@ -198,11 +203,19 @@ export default function Products() {
   };
 
   const handleImageUpload = (url: string) => {
-    setFormData(prev => ({ ...prev, images: [...(prev.images || []), url] }));
+    setFormData(prev => ({ ...prev, image_url: url }));
   };
 
-  const removeImage = (index: number) => {
-    setFormData(prev => ({ ...prev, images: prev.images?.filter((_, i) => i !== index) }));
+  const removeImage = () => {
+    setFormData(prev => ({ ...prev, image_url: '' }));
+  };
+
+  const handleGalleryUpload = (url: string) => {
+    setFormData(prev => ({ ...prev, product_gallery: [...(prev.product_gallery || []), url] }));
+  };
+
+  const removeGalleryImage = (index: number) => {
+    setFormData(prev => ({ ...prev, product_gallery: prev.product_gallery?.filter((_, i) => i !== index) }));
   };
 
   return (
@@ -223,16 +236,16 @@ export default function Products() {
           {products.map((product) => (
             <div key={product.id} className="p-4 flex gap-4 items-center animate-ios group active:bg-gray-50 transition-colors">
               <div className="w-20 h-20 rounded-2xl bg-gray-50 overflow-hidden border border-gray-100 flex-shrink-0 relative">
-                {product.images?.[0] ? (
-                  <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                {product.image_url ? (
+                  <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-gray-300">
                     <ImageIcon size={32} />
                   </div>
                 )}
-                {product.images && product.images.length > 1 && (
+                {product.product_gallery && product.product_gallery.length > 0 && (
                   <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-md backdrop-blur-sm">
-                    +{product.images.length - 1}
+                    +{product.product_gallery.length}
                   </div>
                 )}
               </div>
@@ -292,8 +305,8 @@ export default function Products() {
                 <tr key={product.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4">
                     <div className="w-16 h-16 rounded-xl bg-gray-100 overflow-hidden border border-gray-200">
-                      {product.images?.[0] && (
-                        <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
+                      {product.image_url && (
+                        <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
                       )}
                     </div>
                   </td>
@@ -436,30 +449,38 @@ export default function Products() {
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <label className="text-sm font-bold text-gray-700">{t('images')}</label>
-                <div className="flex gap-3 items-start">
-                  <div className="flex-1">
-                    <ImageUpload
-                      onChange={handleImageUpload}
-                      placeholder={t('add')}
-                      className="w-full"
-                    />
-                  </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-3">
+                  <label className="text-sm font-bold text-gray-700">{t('main_image') || 'الصورة الأساسية'}</label>
+                  <ImageUpload
+                    value={formData.image_url || ''}
+                    onChange={handleImageUpload}
+                    onRemove={removeImage}
+                    placeholder={t('upload_image')}
+                  />
                 </div>
-                <div className="grid grid-cols-4 gap-4 mt-4">
-                  {formData.images?.map((url, idx) => (
-                    <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden border border-gray-200 shadow-sm bg-gray-50">
-                      <img src={url} alt="" className="w-full h-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => removeImage(idx)}
-                        className="absolute top-2 right-2 p-1.5 bg-white/90 text-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500 hover:text-white shadow-sm"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                  ))}
+
+                <div className="space-y-3">
+                  <label className="text-sm font-bold text-gray-700">{t('gallery') || 'معرض الصور'}</label>
+                  <ImageUpload
+                    onChange={handleGalleryUpload}
+                    placeholder={t('add_to_gallery') || 'إضافة للمعرض'}
+                    className="w-full"
+                  />
+                  <div className="grid grid-cols-3 gap-2 mt-2">
+                    {formData.product_gallery?.map((url, idx) => (
+                      <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border border-gray-100 shadow-sm bg-gray-50">
+                        <img src={url} alt="" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => removeGalleryImage(idx)}
+                          className="absolute top-1 right-1 p-1 bg-white/90 text-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500 hover:text-white shadow-sm"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
