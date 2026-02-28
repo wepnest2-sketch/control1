@@ -1,218 +1,225 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { ShoppingBag, Package, Users, DollarSign, AlertTriangle, TrendingUp } from 'lucide-react';
-import { formatNumber, safeDate } from '../lib/utils';
+import { SiteSettings } from '../types/database';
+import ImageUpload from '../components/ImageUpload';
 import { useLanguage } from '../lib/i18n';
-import { useNavigate } from 'react-router-dom';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { format, subDays } from 'date-fns';
-import { ar } from 'date-fns/locale';
 
-export default function Dashboard() {
-  const { t, language } = useLanguage();
-  const navigate = useNavigate();
-  const [stats, setStats] = useState({
-    totalOrders: 0,
-    totalProducts: 0,
-    totalRevenue: 0,
-    pendingOrders: 0
-  });
-  const [lowStockProducts, setLowStockProducts] = useState<any[]>([]);
-  const [revenueData, setRevenueData] = useState<any[]>([]);
+export default function Settings() {
+  const { t } = useLanguage();
+  const [settings, setSettings] = useState<SiteSettings | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    async function fetchStats() {
-      const { count: ordersCount } = await supabase.from('orders').select('*', { count: 'exact', head: true });
-      const { count: productsCount } = await supabase.from('products').select('*', { count: 'exact', head: true });
-      const { count: pendingCount } = await supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'pending');
-      
-      const { data: revenueData } = await supabase.from('orders').select('total_price').neq('status', 'cancelled');
-      const totalRevenue = revenueData?.reduce((acc, curr) => acc + (curr.total_price || 0), 0) || 0;
+    fetchSettings();
+  }, []);
 
-      setStats({
-        totalOrders: ordersCount || 0,
-        totalProducts: productsCount || 0,
-        totalRevenue,
-        pendingOrders: pendingCount || 0
-      });
-    }
+  async function fetchSettings() {
+    const { data } = await supabase.from('site_settings').select('*').single();
+    if (data) setSettings(data);
+  }
 
-    async function fetchLowStock() {
-      // Fetch variants with quantity < 5
-      const { data } = await supabase
-        .from('product_variants')
-        .select('*, products(name, images)')
-        .lt('quantity', 5)
-        .limit(5);
-      
-      if (data) setLowStockProducts(data);
-    }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!settings) return;
+    setLoading(true);
+    await supabase.from('site_settings').update(settings).eq('id', settings.id);
+    setLoading(false);
+    alert(t('settings_saved'));
+  };
 
-    async function fetchRevenueChart() {
-      const last7Days = Array.from({ length: 7 }, (_, i) => {
-        const d = subDays(new Date(), i);
-        return format(d, 'yyyy-MM-dd');
-      }).reverse();
-
-      const { data } = await supabase
-        .from('orders')
-        .select('created_at, total_price')
-        .neq('status', 'cancelled')
-        .gte('created_at', last7Days[0]);
-
-      if (data) {
-        const chartData = last7Days.map(date => {
-          const dayRevenue = data
-            .filter(o => o.created_at.startsWith(date))
-            .reduce((sum, o) => sum + (o.total_price || 0), 0);
-          
-          return {
-            date: format(safeDate(date), 'EEE', { locale: language === 'ar' ? ar : undefined }),
-            revenue: dayRevenue
-          };
-        });
-        setRevenueData(chartData);
-      }
-    }
-
-    fetchStats();
-    fetchLowStock();
-    fetchRevenueChart();
-  }, [language]);
-
-  const StatCard = ({ title, value, icon: Icon, subtext, onClick }: any) => (
-    <div 
-      onClick={onClick}
-      className={`bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow ${onClick ? 'cursor-pointer hover:border-black/10' : ''}`}
-    >
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider">{title}</h3>
-        <div className="p-3 bg-black/5 rounded-xl">
-          <Icon size={24} className="text-black" />
-        </div>
-      </div>
-      <div className="text-4xl font-bold text-gray-900 font-serif mb-2">{value}</div>
-      {subtext && <p className="text-sm text-gray-400">{subtext}</p>}
-    </div>
-  );
+  if (!settings) return <div>{t('loading')}</div>;
 
   return (
-    <div className="space-y-10">
+    <div className="max-w-4xl mx-auto space-y-8">
       <div>
-        <h1 className="text-4xl font-serif font-bold text-gray-900 mb-3">{t('welcome_title')}</h1>
-        <p className="text-gray-500 text-lg">{t('welcome_subtitle')}</p>
+        <h1 className="text-3xl font-serif font-bold text-gray-900">{t('site_settings')}</h1>
+        <p className="text-gray-500 mt-2">{t('site_settings_desc')}</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-        <StatCard 
-          title={t('total_sales')} 
-          value={`${formatNumber(stats.totalRevenue)} ${t('currency')}`} 
-          icon={DollarSign} 
-        />
-        <StatCard 
-          title={t('orders')} 
-          value={formatNumber(stats.totalOrders)} 
-          icon={ShoppingBag} 
-          onClick={() => navigate('/orders')}
-        />
-        <StatCard 
-          title={t('active_orders')} 
-          value={formatNumber(stats.pendingOrders)} 
-          icon={Users}
-          subtext={t('pending')}
-          onClick={() => navigate('/orders')}
-        />
-        <StatCard 
-          title={t('products_count')} 
-          value={formatNumber(stats.totalProducts)} 
-          icon={Package} 
-          onClick={() => navigate('/products')}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Revenue Chart */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="font-bold text-gray-900 flex items-center gap-2">
-              <TrendingUp size={20} className="text-green-500" />
-              {t('revenue_chart')}
-            </h3>
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {/* General Info */}
+        <div className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm space-y-8">
+          <h2 className="text-xl font-bold border-b border-gray-100 pb-4 text-gray-900">{t('general_info')}</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-3">
+              <label className="text-sm font-bold text-gray-700">{t('site_name')}</label>
+              <input
+                type="text"
+                value={settings.site_name}
+                onChange={e => setSettings({...settings, site_name: e.target.value})}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
+              />
+            </div>
+            <div className="space-y-3">
+              <label className="text-sm font-bold text-gray-700">{t('delivery_company_name')}</label>
+              <input
+                type="text"
+                value={settings.delivery_company_name}
+                onChange={e => setSettings({...settings, delivery_company_name: e.target.value})}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
+              />
+            </div>
           </div>
-          <div className="h-[300px] w-full" dir="ltr">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={revenueData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                <XAxis 
-                  dataKey="date" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#9ca3af', fontSize: 12 }} 
-                  dy={10}
-                />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#9ca3af', fontSize: 12 }} 
-                  tickFormatter={(value) => `${value / 1000}k`}
-                />
-                <Tooltip 
-                  cursor={{ fill: '#f9fafb' }}
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                />
-                <Bar dataKey="revenue" fill="#000000" radius={[4, 4, 0, 0]} barSize={40} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="space-y-3">
+            <label className="text-sm font-bold text-gray-700">{t('announcement_text')}</label>
+            <input
+              type="text"
+              value={settings.announcement_text || ''}
+              onChange={e => setSettings({...settings, announcement_text: e.target.value})}
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
+            />
           </div>
-        </div>
-
-        {/* Low Stock Alert */}
-        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-          <div className="flex items-center gap-2 mb-4 text-amber-600">
-            <AlertTriangle size={24} />
-            <h3 className="font-bold text-lg">{t('low_stock')}</h3>
-          </div>
-          <p className="text-sm text-gray-500 mb-6">{t('low_stock_desc')}</p>
           
-          <div className="space-y-4">
-            {lowStockProducts.length > 0 ? (
-              lowStockProducts.map((item) => (
-                <div key={item.id} className="flex items-center gap-4 p-3 bg-amber-50 rounded-xl border border-amber-100">
-                  <div className="w-12 h-12 rounded-lg bg-white overflow-hidden border border-amber-100 flex-shrink-0">
-                    {item.products?.images?.[0] && (
-                      <img src={item.products.images[0]} alt="" className="w-full h-full object-cover" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-gray-900 truncate text-sm">{item.products?.name}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {item.color_name} - {item.size}
-                    </p>
-                  </div>
-                  <div className="text-center px-2">
-                    <span className="block text-lg font-bold text-amber-600 leading-none">{item.quantity}</span>
-                    <span className="text-[10px] text-amber-600/70">{t('quantity')}</span>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-8 text-gray-400 text-sm">
-                <Package size={32} className="mx-auto mb-2 opacity-20" />
-                <p>المخزون بحالة جيدة</p>
-              </div>
-            )}
-            
-            {lowStockProducts.length > 0 && (
-              <button 
-                onClick={() => navigate('/products')}
-                className="w-full py-3 mt-2 text-sm font-bold text-amber-700 hover:bg-amber-50 rounded-xl transition-colors"
-              >
-                {t('view_all')}
-              </button>
-            )}
+          <div className="space-y-3">
+            <label className="text-sm font-bold text-gray-700">{t('notification_sound')}</label>
+            <select
+              value={localStorage.getItem('notificationSound') || 'glass'}
+              onChange={(e) => {
+                localStorage.setItem('notificationSound', e.target.value);
+                window.dispatchEvent(new CustomEvent('sound-changed', { detail: e.target.value }));
+                setSettings({...settings}); 
+              }}
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
+            >
+              <option value="glass">{t('sound_glass')}</option>
+              <option value="bell">{t('sound_bell')}</option>
+              <option value="digital">{t('sound_digital')}</option>
+              <option value="subtle">{t('sound_subtle')}</option>
+              <option value="tritone">{t('sound_tritone')}</option>
+              <option value="chord">{t('sound_chord')}</option>
+              <option value="note">{t('sound_note')}</option>
+              <option value="aurora">{t('sound_aurora')}</option>
+            </select>
+          </div>
+
+          <div className="space-y-3">
+            <label className="text-sm font-bold text-gray-700 flex justify-between">
+              <span>{t('notification_volume')}</span>
+              <span>{Math.round((parseFloat(localStorage.getItem('notificationVolume') || '0.5') * 100))}%</span>
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.1"
+              defaultValue={localStorage.getItem('notificationVolume') || '0.5'}
+              onChange={(e) => {
+                localStorage.setItem('notificationVolume', e.target.value);
+                window.dispatchEvent(new CustomEvent('volume-changed', { detail: e.target.value }));
+                setSettings({...settings}); // Force re-render
+              }}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-black"
+            />
           </div>
         </div>
-      </div>
+
+        {/* Branding */}
+        <div className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm space-y-8">
+          <h2 className="text-xl font-bold border-b border-gray-100 pb-4 text-gray-900">{t('branding')}</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-3">
+              <label className="text-sm font-bold text-gray-700">{t('logo_url')}</label>
+              <ImageUpload
+                value={settings.logo_url}
+                onChange={(url) => setSettings({...settings, logo_url: url})}
+                onRemove={() => setSettings({...settings, logo_url: ''})}
+                placeholder={t('upload_logo')}
+              />
+            </div>
+            <div className="space-y-3">
+              <label className="text-sm font-bold text-gray-700">{t('favicon_url')}</label>
+              <ImageUpload
+                value={settings.favicon_url || ''}
+                onChange={(url) => setSettings({...settings, favicon_url: url})}
+                onRemove={() => setSettings({...settings, favicon_url: ''})}
+                placeholder={t('upload_favicon')}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-3">
+              <label className="text-sm font-bold text-gray-700">{t('primary_color')}</label>
+              <div className="flex gap-3">
+                <input
+                  type="color"
+                  value={settings.primary_color}
+                  onChange={e => setSettings({...settings, primary_color: e.target.value})}
+                  className="h-12 w-12 rounded-lg border border-gray-200 cursor-pointer p-1 bg-white"
+                />
+                <input
+                  type="text"
+                  value={settings.primary_color}
+                  onChange={e => setSettings({...settings, primary_color: e.target.value})}
+                  className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black uppercase font-mono text-left"
+                  dir="ltr"
+                />
+              </div>
+            </div>
+            <div className="space-y-3">
+              <label className="text-sm font-bold text-gray-700">{t('secondary_color')}</label>
+              <div className="flex gap-3">
+                <input
+                  type="color"
+                  value={settings.secondary_color}
+                  onChange={e => setSettings({...settings, secondary_color: e.target.value})}
+                  className="h-12 w-12 rounded-lg border border-gray-200 cursor-pointer p-1 bg-white"
+                />
+                <input
+                  type="text"
+                  value={settings.secondary_color}
+                  onChange={e => setSettings({...settings, secondary_color: e.target.value})}
+                  className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black uppercase font-mono text-left"
+                  dir="ltr"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Hero Section */}
+        <div className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm space-y-8">
+          <h2 className="text-xl font-bold border-b border-gray-100 pb-4 text-gray-900">{t('hero_section')}</h2>
+          <div className="space-y-3">
+            <label className="text-sm font-bold text-gray-700">{t('hero_image_url')}</label>
+            <ImageUpload
+              value={settings.hero_image_url || ''}
+              onChange={(url) => setSettings({...settings, hero_image_url: url})}
+              onRemove={() => setSettings({...settings, hero_image_url: ''})}
+              placeholder={t('upload_hero_image')}
+            />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-3">
+              <label className="text-sm font-bold text-gray-700">{t('hero_title')}</label>
+              <input
+                type="text"
+                value={settings.hero_title || ''}
+                onChange={e => setSettings({...settings, hero_title: e.target.value})}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
+              />
+            </div>
+            <div className="space-y-3">
+              <label className="text-sm font-bold text-gray-700">{t('hero_subtitle')}</label>
+              <input
+                type="text"
+                value={settings.hero_subtitle || ''}
+                onChange={e => setSettings({...settings, hero_subtitle: e.target.value})}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-4">
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-10 py-4 bg-black text-white rounded-xl hover:bg-gray-800 transition-colors font-bold shadow-lg shadow-gray-200 disabled:opacity-50 text-lg"
+          >
+            {loading ? t('saving') : t('save_changes')}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

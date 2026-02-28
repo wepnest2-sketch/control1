@@ -1,225 +1,48 @@
-import React, { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
-import { SiteSettings } from '../types/database';
-import ImageUpload from '../components/ImageUpload';
-import { useLanguage } from '../lib/i18n';
+const CLOUD_NAME = 'dlwuxgvse';
+const API_KEY = '589557557863559';
+const API_SECRET = '-qknr_5WoXpjEBGCLaN74UrgufQ';
 
-export default function Settings() {
-  const { t } = useLanguage();
-  const [settings, setSettings] = useState<SiteSettings | null>(null);
-  const [loading, setLoading] = useState(false);
+export async function uploadImage(file: File): Promise<string> {
+  const timestamp = Math.round(new Date().getTime() / 1000);
+  
+  // Signed upload requires signature of all parameters except file, api_key, resource_type, etc.
+  // We only use timestamp here.
+  const signatureParams = `timestamp=${timestamp}${API_SECRET}`;
+  const signature = await sha1(signatureParams);
 
-  useEffect(() => {
-    fetchSettings();
-  }, []);
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('api_key', API_KEY);
+  formData.append('timestamp', timestamp.toString());
+  formData.append('signature', signature);
+  // Cloudinary automatically optimizes quality with q_auto if we request it in the URL, 
+  // but for upload we can just upload the original. 
+  // To "not tire the database", we store the URL. 
+  // We can also force incoming transformation if needed, but standard upload is fine.
+  
+  try {
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+      method: 'POST',
+      body: formData,
+    });
 
-  async function fetchSettings() {
-    const { data } = await supabase.from('site_settings').select('*').single();
-    if (data) setSettings(data);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error?.message || 'Upload failed');
+    }
+
+    const data = await response.json();
+    return data.secure_url;
+  } catch (error) {
+    console.error('Cloudinary upload error:', error);
+    throw error;
   }
+}
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!settings) return;
-    setLoading(true);
-    await supabase.from('site_settings').update(settings).eq('id', settings.id);
-    setLoading(false);
-    alert(t('settings_saved'));
-  };
-
-  if (!settings) return <div>{t('loading')}</div>;
-
-  return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-3xl font-serif font-bold text-gray-900">{t('site_settings')}</h1>
-        <p className="text-gray-500 mt-2">{t('site_settings_desc')}</p>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-8">
-        {/* General Info */}
-        <div className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm space-y-8">
-          <h2 className="text-xl font-bold border-b border-gray-100 pb-4 text-gray-900">{t('general_info')}</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-3">
-              <label className="text-sm font-bold text-gray-700">{t('site_name')}</label>
-              <input
-                type="text"
-                value={settings.site_name}
-                onChange={e => setSettings({...settings, site_name: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
-              />
-            </div>
-            <div className="space-y-3">
-              <label className="text-sm font-bold text-gray-700">{t('delivery_company_name')}</label>
-              <input
-                type="text"
-                value={settings.delivery_company_name}
-                onChange={e => setSettings({...settings, delivery_company_name: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
-              />
-            </div>
-          </div>
-          <div className="space-y-3">
-            <label className="text-sm font-bold text-gray-700">{t('announcement_text')}</label>
-            <input
-              type="text"
-              value={settings.announcement_text || ''}
-              onChange={e => setSettings({...settings, announcement_text: e.target.value})}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
-            />
-          </div>
-          
-          <div className="space-y-3">
-            <label className="text-sm font-bold text-gray-700">{t('notification_sound')}</label>
-            <select
-              value={localStorage.getItem('notificationSound') || 'glass'}
-              onChange={(e) => {
-                localStorage.setItem('notificationSound', e.target.value);
-                window.dispatchEvent(new CustomEvent('sound-changed', { detail: e.target.value }));
-                setSettings({...settings}); 
-              }}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
-            >
-              <option value="glass">{t('sound_glass')}</option>
-              <option value="bell">{t('sound_bell')}</option>
-              <option value="digital">{t('sound_digital')}</option>
-              <option value="subtle">{t('sound_subtle')}</option>
-              <option value="tritone">{t('sound_tritone')}</option>
-              <option value="chord">{t('sound_chord')}</option>
-              <option value="note">{t('sound_note')}</option>
-              <option value="aurora">{t('sound_aurora')}</option>
-            </select>
-          </div>
-
-          <div className="space-y-3">
-            <label className="text-sm font-bold text-gray-700 flex justify-between">
-              <span>{t('notification_volume')}</span>
-              <span>{Math.round((parseFloat(localStorage.getItem('notificationVolume') || '0.5') * 100))}%</span>
-            </label>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.1"
-              defaultValue={localStorage.getItem('notificationVolume') || '0.5'}
-              onChange={(e) => {
-                localStorage.setItem('notificationVolume', e.target.value);
-                window.dispatchEvent(new CustomEvent('volume-changed', { detail: e.target.value }));
-                setSettings({...settings}); // Force re-render
-              }}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-black"
-            />
-          </div>
-        </div>
-
-        {/* Branding */}
-        <div className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm space-y-8">
-          <h2 className="text-xl font-bold border-b border-gray-100 pb-4 text-gray-900">{t('branding')}</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-3">
-              <label className="text-sm font-bold text-gray-700">{t('logo_url')}</label>
-              <ImageUpload
-                value={settings.logo_url}
-                onChange={(url) => setSettings({...settings, logo_url: url})}
-                onRemove={() => setSettings({...settings, logo_url: ''})}
-                placeholder={t('upload_logo')}
-              />
-            </div>
-            <div className="space-y-3">
-              <label className="text-sm font-bold text-gray-700">{t('favicon_url')}</label>
-              <ImageUpload
-                value={settings.favicon_url || ''}
-                onChange={(url) => setSettings({...settings, favicon_url: url})}
-                onRemove={() => setSettings({...settings, favicon_url: ''})}
-                placeholder={t('upload_favicon')}
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-3">
-              <label className="text-sm font-bold text-gray-700">{t('primary_color')}</label>
-              <div className="flex gap-3">
-                <input
-                  type="color"
-                  value={settings.primary_color}
-                  onChange={e => setSettings({...settings, primary_color: e.target.value})}
-                  className="h-12 w-12 rounded-lg border border-gray-200 cursor-pointer p-1 bg-white"
-                />
-                <input
-                  type="text"
-                  value={settings.primary_color}
-                  onChange={e => setSettings({...settings, primary_color: e.target.value})}
-                  className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black uppercase font-mono text-left"
-                  dir="ltr"
-                />
-              </div>
-            </div>
-            <div className="space-y-3">
-              <label className="text-sm font-bold text-gray-700">{t('secondary_color')}</label>
-              <div className="flex gap-3">
-                <input
-                  type="color"
-                  value={settings.secondary_color}
-                  onChange={e => setSettings({...settings, secondary_color: e.target.value})}
-                  className="h-12 w-12 rounded-lg border border-gray-200 cursor-pointer p-1 bg-white"
-                />
-                <input
-                  type="text"
-                  value={settings.secondary_color}
-                  onChange={e => setSettings({...settings, secondary_color: e.target.value})}
-                  className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black uppercase font-mono text-left"
-                  dir="ltr"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Hero Section */}
-        <div className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm space-y-8">
-          <h2 className="text-xl font-bold border-b border-gray-100 pb-4 text-gray-900">{t('hero_section')}</h2>
-          <div className="space-y-3">
-            <label className="text-sm font-bold text-gray-700">{t('hero_image_url')}</label>
-            <ImageUpload
-              value={settings.hero_image_url || ''}
-              onChange={(url) => setSettings({...settings, hero_image_url: url})}
-              onRemove={() => setSettings({...settings, hero_image_url: ''})}
-              placeholder={t('upload_hero_image')}
-            />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-3">
-              <label className="text-sm font-bold text-gray-700">{t('hero_title')}</label>
-              <input
-                type="text"
-                value={settings.hero_title || ''}
-                onChange={e => setSettings({...settings, hero_title: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
-              />
-            </div>
-            <div className="space-y-3">
-              <label className="text-sm font-bold text-gray-700">{t('hero_subtitle')}</label>
-              <input
-                type="text"
-                value={settings.hero_subtitle || ''}
-                onChange={e => setSettings({...settings, hero_subtitle: e.target.value})}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black transition-colors bg-gray-50 focus:bg-white"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="flex justify-end pt-4">
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-10 py-4 bg-black text-white rounded-xl hover:bg-gray-800 transition-colors font-bold shadow-lg shadow-gray-200 disabled:opacity-50 text-lg"
-          >
-            {loading ? t('saving') : t('save_changes')}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
+async function sha1(str: string): Promise<string> {
+  const enc = new TextEncoder();
+  const hash = await crypto.subtle.digest('SHA-1', enc.encode(str));
+  return Array.from(new Uint8Array(hash))
+    .map(v => v.toString(16).padStart(2, '0'))
+    .join('');
 }
