@@ -36,7 +36,7 @@ export default function Products() {
     price: 0,
     discount_price: 0,
     category_id: '',
-    image_url: '',
+    images: '',
     is_active: true
   });
 
@@ -70,7 +70,7 @@ export default function Products() {
         price: product.price,
         discount_price: product.discount_price,
         category_id: product.category_id,
-        image_url: product.image_url,
+        images: product.images,
         is_active: product.is_active
       });
       await fetchVariants(product.id);
@@ -82,7 +82,7 @@ export default function Products() {
         price: 0,
         discount_price: 0,
         category_id: categories[0]?.id || '',
-        image_url: '',
+        images: '',
         is_active: true
       });
       setVariants([]);
@@ -122,7 +122,7 @@ export default function Products() {
         price: Number(formData.price),
         discount_price: formData.discount_price ? Number(formData.discount_price) : null,
         category_id: formData.category_id || null,
-        image_url: formData.image_url || null,
+        images: formData.images || null,
         is_active: !!formData.is_active
       };
 
@@ -219,11 +219,11 @@ export default function Products() {
   };
 
   const handleImageUpload = (url: string) => {
-    setFormData(prev => ({ ...prev, image_url: url }));
+    setFormData(prev => ({ ...prev, images: url }));
   };
 
   const removeImage = () => {
-    setFormData(prev => ({ ...prev, image_url: '' }));
+    setFormData(prev => ({ ...prev, images: '' }));
   };
 
   return (
@@ -244,8 +244,8 @@ export default function Products() {
           {products.map((product) => (
             <div key={product.id} className="p-4 flex gap-4 items-center animate-ios group active:bg-gray-50 transition-colors">
               <div className="w-20 h-20 rounded-2xl bg-gray-50 overflow-hidden border border-gray-100 flex-shrink-0 relative">
-                {product.image_url ? (
-                  <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+                {product.images ? (
+                  <img src={product.images} alt={product.name} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-gray-300">
                     <ImageIcon size={32} />
@@ -308,8 +308,8 @@ export default function Products() {
                 <tr key={product.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4">
                     <div className="w-16 h-16 rounded-xl bg-gray-100 overflow-hidden border border-gray-200">
-                      {product.image_url && (
-                        <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+                      {product.images && (
+                        <img src={product.images} alt={product.name} className="w-full h-full object-cover" />
                       )}
                     </div>
                   </td>
@@ -455,7 +455,7 @@ export default function Products() {
               <div className="space-y-3">
                 <label className="text-sm font-bold text-gray-700">{t('images')}</label>
                 <ImageUpload
-                  value={formData.image_url || ''}
+                  value={formData.images || ''}
                   onChange={handleImageUpload}
                   onRemove={removeImage}
                   placeholder={t('upload_image')}
