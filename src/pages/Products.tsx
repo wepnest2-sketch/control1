@@ -163,9 +163,10 @@ export default function Products() {
 
       setIsModalOpen(false);
       fetchProducts();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving product:', error);
-      alert('حدث خطأ أثناء حفظ المنتج: عاد النظام للصورة الواحدة لتصحيح الخطأ');
+      const errorMessage = error.message || (typeof error === 'string' ? error : 'خطأ غير معروف');
+      alert(`حدث خطأ أثناء حفظ المنتج: ${errorMessage}`);
     }
   };
 
