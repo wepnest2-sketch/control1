@@ -53,12 +53,17 @@ export default function NotificationBell() {
     };
   }, []);
 
-  const playNotificationSound = () => {
+  const playNotificationSound = async () => {
     try {
       const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioContext) return;
 
       const ctx = new AudioContext();
+
+      // Safari requires explicit resume if context is suspended
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+      }
 
       const playTone = (freq: number, start: number, duration: number) => {
         const osc = ctx.createOscillator();
@@ -78,8 +83,11 @@ export default function NotificationBell() {
       playTone(783.99, 0, 0.2);     // G5
       playTone(1046.50, 0.15, 0.2); // C6
       playTone(1318.51, 0.3, 0.4);  // E6
+
+      // Close context to free resources
+      setTimeout(() => ctx.close(), 1000);
     } catch (e) {
-      console.error('Error playing sound:', e);
+      console.warn('Audio playback blocked or failed:', e);
     }
   };
 

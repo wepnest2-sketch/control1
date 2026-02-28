@@ -7,14 +7,14 @@
   "theme_color": "#000000",
   "icons": [
     {
-      "src": "https://picsum.photos/192/192",
+      "src": "https://res.cloudinary.com/dlwuxgvse/image/upload/v1771972557/434186110_754831856741654_3189618891943124343_n_y4f1iu.jpg",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/jpeg"
     },
     {
-      "src": "https://picsum.photos/512/512",
+      "src": "https://res.cloudinary.com/dlwuxgvse/image/upload/v1771972557/434186110_754831856741654_3189618891943124343_n_y4f1iu.jpg",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/jpeg"
     }
   ]
 }
