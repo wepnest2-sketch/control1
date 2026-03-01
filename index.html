@@ -1,29 +1,17 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
-
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>لوحة تحكم بابيون</title>
-  <link rel="icon" type="image/jpeg"
-    href="https://res.cloudinary.com/dlwuxgvse/image/upload/v1771972557/434186110_754831856741654_3189618891943124343_n_y4f1iu.jpg">
-  <link rel="apple-touch-icon"
-    href="https://res.cloudinary.com/dlwuxgvse/image/upload/v1771972557/434186110_754831856741654_3189618891943124343_n_y4f1iu.jpg">
-  <link rel="manifest" href="/manifest.json">
-</head>
-
-<body>
-  <div id="root"></div>
-  <script type="module" src="/src/main.tsx"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js');
-      });
-    }
-  </script>
-</body>
-
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Papillon Admin - بابيون</title>
+    <link rel="icon" type="image/jpeg" href="https://res.cloudinary.com/dlwuxgvse/image/upload/v1771974115/ifjgnx1teusftkjbmsee.jpg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Cairo:wght@200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-[#F5F5F5]">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
+

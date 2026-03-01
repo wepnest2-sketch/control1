@@ -1,25 +1,30 @@
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+import React from 'react';
+import { cn } from '@/lib/utils';
 
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  className?: string;
 }
 
-export function formatNumber(num: number | string): string {
-  if (num === null || num === undefined) return '';
-  
-  // If it's a number, format it with English locale to ensure Western digits
-  if (typeof num === 'number') {
-    return num.toLocaleString('en-US');
-  }
-
-  // If it's a string, replace Eastern Arabic digits with Western
-  const str = num.toString();
-  return str.replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]);
+export function Card({ className, ...props }: CardProps) {
+  return (
+    <div
+      className={cn(
+        "bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-200",
+        className
+      )}
+      {...props}
+    />
+  );
 }
 
-export function safeDate(date: string | number | Date | null | undefined): Date {
-  if (!date) return new Date();
-  const d = new Date(date);
-  return isNaN(d.getTime()) ? new Date() : d;
+export function CardHeader({ className, ...props }: CardProps) {
+  return <div className={cn("p-6 pb-3", className)} {...props} />;
+}
+
+export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
+  return <h3 className={cn("font-serif text-lg font-bold leading-none tracking-tight", className)} {...props} />;
+}
+
+export function CardContent({ className, ...props }: CardProps) {
+  return <div className={cn("p-6 pt-0", className)} {...props} />;
 }
