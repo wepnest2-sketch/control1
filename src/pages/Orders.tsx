@@ -16,7 +16,7 @@ export function Orders() {
   useEffect(() => {
     fetchWilayas();
     fetchOrders();
-    
+
     // Subscribe to new orders to refresh list
     const subscription = supabase
       .channel('orders-channel')
@@ -107,7 +107,7 @@ export function Orders() {
         // Deduct stock
         for (const item of currentOrder.order_items) {
           if (item.products && item.products.product_variants) {
-            const variant = item.products.product_variants.find((v: any) => 
+            const variant = item.products.product_variants.find((v: any) =>
               v.size === item.selected_size && v.color_name === item.selected_color
             );
 
@@ -117,7 +117,7 @@ export function Orders() {
                 alert(`تنبيه: الكمية غير كافية للمنتج ${item.product_name} (${item.selected_size}, ${item.selected_color}). الكمية الحالية: ${variant.quantity}`);
                 return;
               }
-              
+
               await supabase
                 .from('product_variants')
                 .update({ quantity: newQuantity })
@@ -129,7 +129,7 @@ export function Orders() {
         // Restore stock
         for (const item of currentOrder.order_items) {
           if (item.products && item.products.product_variants) {
-            const variant = item.products.product_variants.find((v: any) => 
+            const variant = item.products.product_variants.find((v: any) =>
               v.size === item.selected_size && v.color_name === item.selected_color
             );
 
@@ -189,7 +189,8 @@ export function Orders() {
           <CardTitle>أحدث الطلبات</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm text-right">
               <thead className="bg-gray-50 text-gray-500 font-medium">
                 <tr>
@@ -231,21 +232,21 @@ export function Orders() {
                         </span>
                       </td>
                       <td className="px-4 py-3 flex gap-2">
-                        <button 
+                        <button
                           onClick={() => updateStatus(order.id, 'confirmed')}
-                          className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors" 
+                          className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors"
                           title="تأكيد"
                         >
                           <CheckCircle className="w-4 h-4" />
                         </button>
-                        <button 
+                        <button
                           onClick={() => updateStatus(order.id, 'cancelled')}
-                          className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors" 
+                          className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
                           title="إلغاء"
                         >
                           <XCircle className="w-4 h-4" />
                         </button>
-                        <button 
+                        <button
                           onClick={() => handleViewOrder(order)}
                           className="p-1 text-gray-400 hover:text-black hover:bg-gray-100 rounded transition-colors"
                           title="عرض التفاصيل"
@@ -258,6 +259,56 @@ export function Orders() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-4">
+            {loading ? (
+              <p className="text-center py-8 text-gray-500">جاري التحميل...</p>
+            ) : orders.length === 0 ? (
+              <p className="text-center py-8 text-gray-500">لا توجد طلبات حتى الآن</p>
+            ) : (
+              orders.map((order) => (
+                <div key={order.id} className="bg-gray-50 rounded-2xl p-4 border border-gray-100 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-mono text-xs text-gray-500">#{order.order_number || order.id.slice(0, 8)}</p>
+                      <h4 className="font-bold text-gray-900">{order.customer_first_name} {order.customer_last_name}</h4>
+                      <p className="text-xs text-gray-500">{order.customer_phone}</p>
+                    </div>
+                    <span className={cn("px-2 py-1 rounded-full text-[10px] font-bold", getStatusColor(order.status))}>
+                      {getStatusLabel(order.status)}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center text-sm pt-2 border-t border-gray-100">
+                    <span className="text-gray-500">{wilayasMap[order.wilaya_id] || order.wilaya_id}</span>
+                    <span className="font-bold">{order.total_price} د.ج</span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 pt-2">
+                    <button
+                      onClick={() => handleViewOrder(order)}
+                      className="flex items-center justify-center gap-1 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100"
+                    >
+                      <Eye className="w-3 h-3" /> معاينة
+                    </button>
+                    <button
+                      onClick={() => updateStatus(order.id, 'confirmed')}
+                      className="flex items-center justify-center gap-1 py-2 bg-green-600 rounded-xl text-xs font-bold text-white hover:bg-green-700"
+                    >
+                      <CheckCircle className="w-3 h-3" /> تأكيد
+                    </button>
+                    <button
+                      onClick={() => updateStatus(order.id, 'cancelled')}
+                      className="flex items-center justify-center gap-1 py-2 bg-red-50 text-red-600 rounded-xl text-xs font-bold hover:bg-red-100"
+                    >
+                      <XCircle className="w-3 h-3" /> إلغاء
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>
@@ -299,7 +350,7 @@ export function Orders() {
                   <p className="text-xs text-gray-500 mb-1">رقم الهاتف</p>
                   <p className="font-medium font-mono" dir="ltr">{selectedOrder.customer_phone || '-'}</p>
                 </div>
-                
+
                 <div>
                   <p className="text-xs text-gray-500 mb-1">الولاية</p>
                   <p className="font-medium">{wilayasMap[selectedOrder.wilaya_id] || selectedOrder.wilaya_id || '-'}</p>
@@ -350,11 +401,11 @@ export function Orders() {
                       <div key={index} className="flex items-center gap-4 p-3 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors print:border-none print:p-0 print:mb-2">
                         <div className="w-12 h-12 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 print:hidden">
                           {item.products?.images && item.products.images[0] ? (
-                            <img 
-                              src={item.products.images[0]} 
-                              alt="" 
+                            <img
+                              src={item.products.images[0]}
+                              alt=""
                               referrerPolicy="no-referrer"
-                              className="w-full h-full object-cover" 
+                              className="w-full h-full object-cover"
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">IMG</div>
@@ -392,13 +443,13 @@ export function Orders() {
 
               {/* Actions */}
               <div className="grid grid-cols-2 gap-3 pt-2 print:hidden">
-                <button 
+                <button
                   onClick={() => { updateStatus(selectedOrder.id, 'confirmed'); setSelectedOrder(null); }}
                   className="bg-black text-white py-3 rounded-xl hover:bg-gray-800 transition-colors shadow-lg font-medium flex items-center justify-center gap-2"
                 >
                   <CheckCircle className="w-4 h-4" /> تأكيد الطلب
                 </button>
-                <button 
+                <button
                   onClick={() => { updateStatus(selectedOrder.id, 'cancelled'); setSelectedOrder(null); }}
                   className="bg-white text-red-600 border border-red-100 py-3 rounded-xl hover:bg-red-50 transition-colors font-medium flex items-center justify-center gap-2"
                 >
