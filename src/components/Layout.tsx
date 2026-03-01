@@ -1,219 +1,106 @@
-import React from 'react';
-import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Package, ShoppingBag, Layers, Map, Settings, FileText, Menu, X, LogOut, Languages, ChevronLeft, ChevronRight } from 'lucide-react';
-import Joyride, { CallBackProps } from 'react-joyride';
-import { cn } from '../lib/utils';
-import NotificationBell from './NotificationBell';
-import { useLanguage } from '../lib/i18n';
+import React, { useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { 
+  LayoutDashboard, 
+  Package, 
+  ShoppingBag, 
+  MapPin, 
+  Settings, 
+  Menu, 
+  X,
+  Layers,
+  FileText
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-export default function Layout({ children }: { children: React.ReactNode }) {
-  const [isSidebarOpen, setIsSidebarOpen] = React.useState(false); // mobile
-  const [isCollapsed, setIsCollapsed] = React.useState(false); // desktop compact
-  const [runTour, setRunTour] = React.useState(false);
-  const { t, language, setLanguage, dir } = useLanguage();
+interface LayoutProps {
+  children: React.ReactNode;
+}
 
-  const toggleLanguage = () => {
-    setLanguage(language === 'ar' ? 'en' : 'ar');
-  };
+export default function Layout({ children }: LayoutProps) {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Default closed on mobile
+  const location = useLocation();
 
   const navItems = [
-    { to: '/', icon: LayoutDashboard, label: t('dashboard') },
-    { to: '/orders', icon: ShoppingBag, label: t('orders') },
-    { to: '/products', icon: Package, label: t('products') },
-    { to: '/categories', icon: Layers, label: t('categories') },
-    { to: '/wilayas', icon: Map, label: t('wilayas') },
-    { to: '/about', icon: FileText, label: t('about') },
-    { to: '/settings', icon: Settings, label: t('settings') },
+    { icon: LayoutDashboard, label: 'لوحة التحكم', path: '/' },
+    { icon: ShoppingBag, label: 'الطلبات', path: '/orders' },
+    { icon: Package, label: 'المنتجات', path: '/products' },
+    { icon: Layers, label: 'التصنيفات', path: '/categories' },
+    { icon: MapPin, label: 'الولايات والتوصيل', path: '/wilayas' },
+    { icon: FileText, label: 'المحتوى', path: '/content' },
+    { icon: Settings, label: 'الإعدادات', path: '/settings' },
   ];
-
-  const joyrideSteps = [
-    {
-      target: '[data-tour="tour-dashboard"]',
-      title: t('tour_step_dashboard_title'),
-      content: t('tour_step_dashboard_content'),
-    },
-    {
-      target: '[data-tour="tour-orders"]',
-      title: t('tour_step_orders_title'),
-      content: t('tour_step_orders_content'),
-    },
-    {
-      target: '[data-tour="tour-products"]',
-      title: t('tour_step_products_title'),
-      content: t('tour_step_products_content'),
-    },
-    {
-      target: '[data-tour="lang-toggle"]',
-      title: t('tour_step_language_title'),
-      content: t('tour_step_language_content'),
-    },
-    {
-      target: '#main-content',
-      title: t('tour_step_main_title'),
-      content: t('tour_step_main_content'),
-    },
-  ];
-
-  const handleJoyrideCallback = (data: CallBackProps) => {
-    const { status } = data;
-    const finishedStatuses: string[] = ['finished', 'skipped'];
-    if (finishedStatuses.includes(status)) {
-      setRunTour(false);
-    }
-  };
 
   return (
-    <div className="min-h-screen bg-[#F5F5F5] flex font-sans text-gray-900" dir={dir}>
-      <Joyride
-        steps={joyrideSteps}
-        run={runTour}
-        continuous
-        showSkipButton
-        showProgress
-        callback={handleJoyrideCallback}
-        styles={{
-          options: {
-            zIndex: 100000,
-          },
-        }}
-        locale={{
-          next: t('next'),
-          back: t('back'),
-          close: t('close'),
-          skip: t('skip'),
-          last: t('done'),
-        }}
-      />
+    <div className="min-h-screen bg-neutral-50 flex overflow-hidden">
+      {/* Sidebar Overlay for Mobile */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
 
       {/* Sidebar */}
-      <aside
+      <aside 
         className={cn(
-          'fixed inset-y-0 z-50 bg-white text-gray-900 transition-transform duration-200 ease-in-out shadow-lg print:hidden',
-          isCollapsed ? 'w-20' : 'w-64',
-          // mobile visibility
-          language === 'ar'
-            ? (isSidebarOpen ? 'translate-x-0' : 'translate-x-[100%] lg:translate-x-0')
-            : (isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'),
-          'lg:static lg:inset-auto',
-          language === 'ar' ? 'right-0' : 'left-0'
+          "fixed inset-y-0 right-0 z-50 w-64 bg-black text-white transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0",
+          !isSidebarOpen && "translate-x-full lg:translate-x-0"
         )}
-        aria-expanded={!isCollapsed}
       >
-        <div className="h-16 flex items-center justify-between px-4 border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="p-2 rounded-md hover:bg-gray-100 hidden lg:inline-flex"
-              aria-label={isCollapsed ? 'expand sidebar' : 'collapse sidebar'}
-            >
-              {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-            </button>
-            <div className={cn('flex items-center gap-3 transition-all duration-300', isCollapsed ? 'scale-75' : 'scale-100')}>
-              <img
-                src="https://res.cloudinary.com/dlwuxgvse/image/upload/v1771972557/434186110_754831856741654_3189618891943124343_n_y4f1iu.jpg"
-                alt="Logo"
-                className="w-10 h-10 rounded-full object-cover ring-2 ring-gray-100 shadow-sm"
-              />
-              <span className={cn('text-xl font-serif font-bold tracking-wider transition-opacity', isCollapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100')}>بابيون</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden text-gray-500 hover:text-black p-2">
-              <X size={20} />
-            </button>
-          </div>
+        <div className="flex items-center justify-between p-6 border-b border-white/10">
+          <h1 className="text-2xl font-serif italic font-bold">Papillon</h1>
+          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden text-white/60 hover:text-white">
+            <X size={24} />
+          </button>
         </div>
 
-        <nav className="p-3 space-y-1">
+        <nav className="p-4 space-y-1">
           {navItems.map((item) => {
-            const tourKey = item.to === '/' ? 'tour-dashboard' : `tour-${item.to.replace('/', '')}`;
+            const isActive = location.pathname === item.path;
             return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                data-tour={tourKey}
-                className={({ isActive }) =>
-                  cn(
-                    'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm',
-                    isActive ? 'bg-gray-100 text-gray-900 font-semibold' : 'text-gray-600 hover:bg-gray-50'
-                  )
-                }
+              <Link
+                key={item.path}
+                to={item.path}
+                onClick={() => setIsSidebarOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
+                  isActive 
+                    ? "bg-white text-black font-medium" 
+                    : "text-white/60 hover:text-white hover:bg-white/10"
+                )}
               >
-                <div className="p-2 rounded-md flex-shrink-0 bg-gray-50">
-                  <item.icon size={18} />
-                </div>
-                <span className={cn(isCollapsed ? 'hidden' : 'truncate')}>{item.label}</span>
-              </NavLink>
+                <item.icon size={20} />
+                <span>{item.label}</span>
+              </Link>
             );
           })}
         </nav>
-
-        <div className="absolute bottom-4 left-0 right-0 px-3">
-          <button className={cn('flex items-center gap-3 px-3 py-2 rounded-lg w-full text-sm', isCollapsed ? 'justify-center' : '')}>
-            <LogOut size={16} />
-            <span className={cn(isCollapsed ? 'hidden' : '')}>{t('logout')}</span>
-          </button>
-        </div>
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden print:overflow-visible print:h-auto print:block">
+      <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         {/* Header */}
-        {/* Header */}
-        <header className="h-14 bg-white/80 backdrop-blur-md border-b border-gray-200 flex items-center justify-between px-4 lg:px-6 shadow-sm print:hidden sticky top-0 z-30">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden text-gray-500 hover:text-black p-2">
-              <Menu size={20} />
-            </button>
-            <div className="text-sm text-gray-700 font-semibold hidden lg:block">{/* space for page title if needed */}</div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setRunTour(true)}
-              className="flex items-center gap-2 px-2 py-1 text-gray-600 hover:text-black hover:bg-gray-50 rounded-md transition-colors text-sm"
-              aria-label={t('tour_start')}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-help-circle"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4"></path><path d="M12 16h.01"></path></svg>
-              <span className="hidden sm:inline text-sm">{t('tour_start')}</span>
-            </button>
-
-            <button
-              onClick={toggleLanguage}
-              data-tour="lang-toggle"
-              className="flex items-center gap-2 px-2 py-1 text-gray-600 hover:text-black hover:bg-gray-50 rounded-md transition-colors text-sm"
-            >
-              <Languages size={18} />
-              <span className="hidden sm:inline text-sm">{language === 'ar' ? 'English' : 'العربية'}</span>
-            </button>
-
-            <NotificationBell />
-
-            <div className="text-right hidden md:block">
-              <p className="text-sm font-bold text-gray-900">المدير العام</p>
-              <p className="text-xs text-gray-500">مشرف النظام</p>
-            </div>
-
-            <div className="w-8 h-8 rounded-full bg-gray-900 text-white flex items-center justify-center text-sm font-bold shadow-md ring-2 ring-gray-100">
-              م
+        <header className="bg-white border-b border-neutral-200 h-16 flex items-center justify-between px-6 lg:px-8 shrink-0">
+          <button 
+            onClick={() => setIsSidebarOpen(true)}
+            className="p-2 -mr-2 text-neutral-600 hover:text-black lg:hidden"
+          >
+            <Menu size={24} />
+          </button>
+          <div className="flex-1"></div>
+          <div className="flex items-center gap-4">
+            <div className="w-8 h-8 rounded-full bg-neutral-200 flex items-center justify-center text-sm font-bold">
+              A
             </div>
           </div>
         </header>
 
         {/* Page Content */}
-        <main id="main-content" className="flex-1 overflow-y-auto p-4 lg:p-6 print:overflow-visible print:h-auto print:p-0">
+        <div className="flex-1 overflow-auto p-6 lg:p-8">
           {children}
-        </main>
-      </div>
-
-      {/* Overlay for mobile */}
-      {isSidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/40 z-40 lg:hidden backdrop-blur-sm"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
+        </div>
+      </main>
     </div>
   );
 }
